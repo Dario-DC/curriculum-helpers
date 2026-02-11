@@ -14,6 +14,9 @@ import {
   ArrowFunction,
   FunctionExpression,
   InterfaceDeclaration,
+  PropertySignature,
+  TypeLiteralNode,
+  ParameterDeclaration,
 } from "typescript";
 
 class Explorer {
@@ -388,6 +391,138 @@ class Explorer {
   // Checks if an interface declaration with the given name exists in the current tree
   hasInterface(name: string): boolean {
     return !this.findInterface(name).isEmpty();
+  }
+
+  // Checks for properties in interfaces, type literals, type aliases, and function parameters
+  // If only name is provided, checks for presence regardless of type or optionality
+  // If type is undefined and isOptional is provided, checks optionality without checking type
+  hasProperty(name: string, type?: string, isOptional?: boolean): boolean {
+    if (!this.tree) {
+      return false;
+    }
+
+    // Helper function to check a property signature
+    const checkProperty = (prop: PropertySignature): boolean => {
+      // Check if the property name matches
+      const propName =
+        "text" in prop.name ? (prop.name as Identifier).text : null;
+      if (propName !== name) {
+        return false;
+      }
+
+      // If only checking for property existence (no type or optionality specified)
+      if (type === undefined && isOptional === undefined) {
+        return true;
+      }
+
+      // Check optionality if specified
+      if (isOptional !== undefined) {
+        const propIsOptional = !!prop.questionToken;
+        if (propIsOptional !== isOptional) {
+          return false;
+        }
+      }
+
+      // Check type if specified (type !== undefined means we want to check the type)
+      if (type !== undefined && type !== null) {
+        if (!prop.type) {
+          return false;
+        }
+
+        const typeExplorer = new Explorer(prop.type);
+        return typeExplorer.equals(type);
+      }
+
+      return true;
+    };
+
+    // Helper function to get properties from a TypeLiteralNode
+    const getPropertiesFromTypeLiteral = (
+      typeLiteral: TypeLiteralNode,
+    ): PropertySignature[] =>
+      typeLiteral.members.filter(
+        (member) => member.kind === SyntaxKind.PropertySignature,
+      ) as PropertySignature[];
+
+    // Check InterfaceDeclaration
+    if (this.tree.kind === SyntaxKind.InterfaceDeclaration) {
+      const interfaceDecl = this.tree as InterfaceDeclaration;
+      const properties = interfaceDecl.members.filter(
+        (member) => member.kind === SyntaxKind.PropertySignature,
+      ) as PropertySignature[];
+      return properties.some(checkProperty);
+    }
+
+    // Check TypeAliasDeclaration (when the type is a TypeLiteral)
+    if (this.tree.kind === SyntaxKind.TypeAliasDeclaration) {
+      const typeAlias = this.tree as TypeAliasDeclaration;
+      if (typeAlias.type.kind === SyntaxKind.TypeLiteral) {
+        const properties = getPropertiesFromTypeLiteral(
+          typeAlias.type as TypeLiteralNode,
+        );
+        return properties.some(checkProperty);
+      }
+    }
+
+    // Check function parameters (both function declarations and variable statements with functions)
+    if (this.tree.kind === SyntaxKind.FunctionDeclaration) {
+      const funcDecl = this.tree as FunctionDeclaration;
+      return this.checkParametersForProperty(
+        funcDecl.parameters,
+        checkProperty,
+      );
+    }
+
+    if (this.tree.kind === SyntaxKind.VariableStatement) {
+      const declaration = (this.tree as VariableStatement).declarationList
+        .declarations[0];
+      if (
+        declaration.initializer &&
+        (declaration.initializer.kind === SyntaxKind.ArrowFunction ||
+          declaration.initializer.kind === SyntaxKind.FunctionExpression)
+      ) {
+        const funcExpr = declaration.initializer as
+          | ArrowFunction
+          | FunctionExpression;
+        return this.checkParametersForProperty(
+          funcExpr.parameters,
+          checkProperty,
+        );
+      }
+    }
+
+    // Check if the tree itself is a Parameter with a TypeLiteral type
+    if (this.tree.kind === SyntaxKind.Parameter) {
+      const param = this.tree as ParameterDeclaration;
+      if (param.type && param.type.kind === SyntaxKind.TypeLiteral) {
+        const properties = getPropertiesFromTypeLiteral(
+          param.type as TypeLiteralNode,
+        );
+        return properties.some(checkProperty);
+      }
+    }
+
+    return false;
+  }
+
+  // Helper method to check function parameters for properties
+  private checkParametersForProperty(
+    parameters: readonly ParameterDeclaration[],
+    checkProperty: (prop: PropertySignature) => boolean,
+  ): boolean {
+    for (const param of parameters) {
+      if (param.type && param.type.kind === SyntaxKind.TypeLiteral) {
+        const typeLiteral = param.type as TypeLiteralNode;
+        const properties = typeLiteral.members.filter(
+          (member) => member.kind === SyntaxKind.PropertySignature,
+        ) as PropertySignature[];
+        if (properties.some(checkProperty)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }
 

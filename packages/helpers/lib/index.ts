@@ -1,5 +1,6 @@
 import { strip } from "./strip";
 import astHelpers from "../python/py_helpers.py";
+export { Explorer } from "./ast";
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
