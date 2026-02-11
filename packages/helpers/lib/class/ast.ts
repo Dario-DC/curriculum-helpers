@@ -22,6 +22,7 @@ import {
   TypeParameterDeclaration,
   ClassDeclaration,
   MethodDeclaration,
+  PropertyDeclaration,
 } from "typescript";
 
 class Explorer {
@@ -71,7 +72,7 @@ class Explorer {
 
   toString(): string {
     if (this.tree === null) {
-      return " no ast";
+      return "no ast";
     }
 
     return this.tree.getText(this.sourceFile || undefined);
@@ -216,18 +217,41 @@ class Explorer {
     return !this.findVariable(name).isEmpty();
   }
 
-  // Retrieves the type annotation of a variable statement if it exists, otherwise returns an empty Explorer
+  // Retrieves the type annotation of the current node if it exists, otherwise returns an empty Explorer
   getAnnotation(): Explorer {
     if (!this.tree) {
       return new Explorer();
     }
 
+    // Handle VariableStatement (variable declarations)
     if (this.tree.kind === SyntaxKind.VariableStatement) {
       const declaration = (this.tree as VariableStatement).declarationList
         .declarations[0];
       if (declaration.type) {
         return new Explorer(declaration.type);
       }
+    }
+
+    // Handle Parameter (function/method parameters)
+    if (this.tree.kind === SyntaxKind.Parameter) {
+      const param = this.tree as ParameterDeclaration;
+      if (param.type) {
+        return new Explorer(param.type);
+      }
+    }
+
+    // Handle PropertyDeclaration (class properties)
+    if (this.tree.kind === SyntaxKind.PropertyDeclaration) {
+      const prop = this.tree as PropertyDeclaration;
+      if (prop.type) {
+        return new Explorer(prop.type);
+      }
+    }
+
+    // Handle TypeAliasDeclaration (the type itself)
+    if (this.tree.kind === SyntaxKind.TypeAliasDeclaration) {
+      const typeAlias = this.tree as TypeAliasDeclaration;
+      return new Explorer(typeAlias.type);
     }
 
     return new Explorer();
@@ -238,21 +262,12 @@ class Explorer {
       return false;
     }
 
-    // A if ("type" in this.tree &&this.tree.type) {
-    //     const typeAnnotation = new Explorer(this.tree.type);
-    //     return typeAnnotation.equals(annotation);
-    // }
-
-    if (this.tree.kind === SyntaxKind.VariableStatement) {
-      const declaration = (this.tree as VariableStatement).declarationList
-        .declarations[0];
-      if (declaration.type) {
-        const typeAnnotation = new Explorer(declaration.type);
-        return typeAnnotation.equals(annotation);
-      }
+    const typeAnnotation = this.getAnnotation();
+    if (typeAnnotation.isEmpty()) {
+      return false;
     }
 
-    return false;
+    return typeAnnotation.equals(annotation);
   }
 
   // Finds all functions in the current tree, including function declarations, function expressions assigned to variables, and class methods
@@ -314,20 +329,38 @@ class Explorer {
     return !this.findFunction(name).isEmpty();
   }
 
-  // Checks if a function (either a function declaration or a variable statement initialized with a function) has a specific return type annotation
+  // Checks if a function (function declaration, method, arrow function, or function expression) has a specific return type annotation
   hasReturnAnnotation(annotation: string): boolean {
     if (!this.tree) {
       return false;
     }
 
+    let functionNode:
+      | FunctionDeclaration
+      | MethodDeclaration
+      | ArrowFunction
+      | FunctionExpression
+      | null = null;
+
+    // Handle FunctionDeclaration
     if (this.tree.kind === SyntaxKind.FunctionDeclaration) {
-      const funcDecl = this.tree as FunctionDeclaration;
-      if (funcDecl.type) {
-        const returnAnnotation = new Explorer(funcDecl.type);
-        return returnAnnotation.equals(annotation);
-      }
+      functionNode = this.tree as FunctionDeclaration;
     }
 
+    // Handle MethodDeclaration
+    if (this.tree.kind === SyntaxKind.MethodDeclaration) {
+      functionNode = this.tree as MethodDeclaration;
+    }
+
+    // Handle ArrowFunction and FunctionExpression directly
+    if (
+      this.tree.kind === SyntaxKind.ArrowFunction ||
+      this.tree.kind === SyntaxKind.FunctionExpression
+    ) {
+      functionNode = this.tree as ArrowFunction | FunctionExpression;
+    }
+
+    // Handle VariableStatement with function initializer
     if (this.tree.kind === SyntaxKind.VariableStatement) {
       const declaration = (this.tree as VariableStatement).declarationList
         .declarations[0];
@@ -336,14 +369,16 @@ class Explorer {
         (declaration.initializer.kind === SyntaxKind.ArrowFunction ||
           declaration.initializer.kind === SyntaxKind.FunctionExpression)
       ) {
-        const funcExpr = declaration.initializer as
+        functionNode = declaration.initializer as
           | ArrowFunction
           | FunctionExpression;
-        if (funcExpr.type) {
-          const returnAnnotation = new Explorer(funcExpr.type);
-          return returnAnnotation.equals(annotation);
-        }
       }
+    }
+
+    // Check return type if we found a function node
+    if (functionNode && functionNode.type) {
+      const returnAnnotation = new Explorer(functionNode.type);
+      return returnAnnotation.equals(annotation);
     }
 
     return false;
@@ -432,8 +467,39 @@ class Explorer {
     return !this.findClass(name).isEmpty();
   }
 
+  // Finds all properties in a class
+  findClassProps(): Explorer[] {
+    if (!this.tree || this.tree.kind !== SyntaxKind.ClassDeclaration) {
+      return [];
+    }
+
+    const classDecl = this.tree as ClassDeclaration;
+    const properties: Explorer[] = [];
+
+    classDecl.members.forEach((member) => {
+      if (member.kind === SyntaxKind.PropertyDeclaration) {
+        properties.push(new Explorer(member));
+      }
+    });
+
+    return properties;
+  }
+
+  // Finds a specific property in a class by name
+  findClassProp(name: string): Explorer {
+    const properties = this.findClassProps();
+    const cb = (p: Explorer) =>
+      ((p.tree as PropertyDeclaration).name as Identifier).text === name;
+    return properties.find(cb) ?? new Explorer();
+  }
+
+  // Checks if a class has a property with the given name
+  hasClassProp(name: string): boolean {
+    return !this.findClassProp(name).isEmpty();
+  }
+
   // Checks if a property with the given name (and optionally type and optionality) exists in the current tree, which can be an interface, type literal, or variable statement with a type literal annotation
-  hasProp(name: string, type?: string, isOptional?: boolean): boolean {
+  hasTypeProp(name: string, type?: string, isOptional?: boolean): boolean {
     if (!this.tree) {
       return false;
     }
@@ -526,11 +592,11 @@ class Explorer {
   }
 
   // Checks if all specified properties exist in the current tree, which can be an interface, type literal, or variable statement with a type literal annotation
-  hasProps(
+  hasTypeProps(
     props: { name: string; type?: string; isOptional?: boolean }[],
   ): boolean {
     return props.every((prop) =>
-      this.hasProp(prop.name, prop.type, prop.isOptional),
+      this.hasTypeProp(prop.name, prop.type, prop.isOptional),
     );
   }
 
