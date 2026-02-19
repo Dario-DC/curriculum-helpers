@@ -181,10 +181,15 @@ describe("functions", () => {
         "function foo() { return 42; } function bar() { return 24; }";
       const explorer = new Explorer(sourceCode);
       const functions = explorer.findFunctions();
-      expect(Array.isArray(functions)).toBe(true);
+      functions.forEach((f) => expect(f).toBeInstanceOf(Explorer));
+    });
+
+    it("returns one entry per function", () => {
+      const sourceCode =
+        "function foo() { return 42; } function bar() { return 24; }";
+      const explorer = new Explorer(sourceCode);
+      const functions = explorer.findFunctions();
       expect(functions).toHaveLength(2);
-      expect(functions[0]).toBeInstanceOf(Explorer);
-      expect(functions[1]).toBeInstanceOf(Explorer);
     });
 
     it("returns an empty array if there are no functions", () => {
@@ -211,7 +216,7 @@ describe("functions", () => {
       ).toBe(true);
     });
 
-    it("does not find function expressions and arrow functions assigned to variables", () => {
+    it("does not find function expressions and arrow functions assigned to variables by default", () => {
       const sourceCode = `
                     const foo = function() { return 42; };
                     const bar = () => 24;
@@ -220,14 +225,24 @@ describe("functions", () => {
       const functions = explorer.findFunctions();
       expect(functions).toHaveLength(0);
     });
+
+    it("finds function expressions and arrow functions assigned to variables when withVariables is true", () => {
+      const sourceCode = `
+                    const foo = function() { return 42; };
+                    const bar = () => 24;
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functions = explorer.findFunctions(true);
+      expect(functions).toHaveLength(2);
+    });
   });
 
   describe("findFunction", () => {
-    it("returns an Explorer object for the specified function name (arrow function and function expression excluded)", () => {
+    it("returns an Explorer object for the specified function name", () => {
       const sourceCode = `
+                    const a = [1, 2, 3];
                     function foo() { return 42; }
-                    const bar = () => 24;
-                    const baz = function() { return 42; };
+                    const b = 1;
                 `;
       const explorer = new Explorer(sourceCode);
       const functionFoo = explorer.findFunction("foo");
@@ -246,7 +261,7 @@ describe("functions", () => {
       expect(functionBaz.isEmpty()).toBe(true);
     });
 
-    it("does not find function expressions and arrow functions assigned to variables", () => {
+    it("does not find function expressions and arrow functions assigned to variables by default", () => {
       const sourceCode = `
                     const foo = function() { return 42; };
                     const bar = () => 24;
@@ -257,6 +272,23 @@ describe("functions", () => {
 
       const functionBar = explorer.findFunction("bar");
       expect(functionBar.isEmpty()).toBe(true);
+    });
+
+    it("finds function expressions and arrow functions assigned to variables when withVariables is true", () => {
+      const sourceCode = `
+                    const foo = function() { return 42; };
+                    const bar = () => 24;
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo", true);
+      expect(functionFoo).toBeInstanceOf(Explorer);
+      expect(
+        functionFoo.matches("const foo = function() { return 42; };"),
+      ).toBe(true);
+
+      const functionBar = explorer.findFunction("bar", true);
+      expect(functionBar).toBeInstanceOf(Explorer);
+      expect(functionBar.matches("const bar = () => 24;")).toBe(true);
     });
   });
 
@@ -280,7 +312,7 @@ describe("functions", () => {
       expect(explorer.hasFunction("baz")).toBe(false);
     });
 
-    it("does not find function expressions and arrow functions assigned to variables", () => {
+    it("does not find function expressions and arrow functions assigned to variables by default", () => {
       const sourceCode = `
                     const foo = function() { return 42; };
                     const bar = () => 24;
@@ -288,6 +320,16 @@ describe("functions", () => {
       const explorer = new Explorer(sourceCode);
       expect(explorer.hasFunction("foo")).toBe(false);
       expect(explorer.hasFunction("bar")).toBe(false);
+    });
+
+    it("finds function expressions and arrow functions assigned to variables when withVariables is true", () => {
+      const sourceCode = `
+                    const foo = function() { return 42; };
+                    const bar = () => 24;
+                `;
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.hasFunction("foo", true)).toBe(true);
+      expect(explorer.hasFunction("bar", true)).toBe(true);
     });
   });
 });
