@@ -71,7 +71,7 @@ class Explorer {
   }
 
   // Compares the current tree with another tree, ignoring semicolons and whitespace
-  equals(other: string | Explorer): boolean {
+  matches(other: string | Explorer): boolean {
     const otherExplorer =
       typeof other === "string" ? new Explorer(other) : other;
 
@@ -149,27 +149,9 @@ class Explorer {
     return nodes;
   }
 
-  // Finds variable statements that are not initialized with functions
+  // Finds all variable statements
   findVariables(): Explorer[] {
-    const variables = this.findAll(SyntaxKind.VariableStatement);
-
-    return variables.filter((v) => {
-      const declaration = (v.tree as VariableStatement).declarationList
-        .declarations[0];
-      if (!declaration.initializer) {
-        return true;
-      }
-
-      const initializerKind = declaration.initializer.kind;
-      if (
-        initializerKind === SyntaxKind.ArrowFunction ||
-        initializerKind === SyntaxKind.FunctionExpression
-      ) {
-        return false;
-      }
-
-      return true;
-    });
+    return this.findAll(SyntaxKind.VariableStatement);
   }
 
   // Finds a variable by name, excluding function declarations
@@ -243,24 +225,16 @@ class Explorer {
     }
 
     const annotationExplorer = new Explorer(annotationNode);
-    return currentAnnotation.equals(annotationExplorer);
+    return currentAnnotation.matches(annotationExplorer);
   }
 
-  // Finds all functions in the current tree, including function declarations, function expressions assigned to variables, and class methods
-  findFunctions(): Explorer[] {
-    // If tree is a ClassDeclaration, find methods within it
-    if (this.tree?.kind === SyntaxKind.ClassDeclaration) {
-      const classDecl = this.tree as ClassDeclaration;
-      const methods: Explorer[] = [];
-      classDecl.members.forEach((member) => {
-        if (member.kind === SyntaxKind.MethodDeclaration) {
-          methods.push(new Explorer(member));
-        }
-      });
-      return methods;
+  // Finds all functions in the current tree. If withVariables is true, it includes function expressions and arrow functions assigned to variables
+  findFunctions(withVariables: boolean = false): Explorer[] {
+    const functionDeclarations = this.findAll(SyntaxKind.FunctionDeclaration);
+    if (!withVariables) {
+      return functionDeclarations;
     }
 
-    const functionDeclarations = this.findAll(SyntaxKind.FunctionDeclaration);
     const variableStatements = this.findAll(SyntaxKind.VariableStatement);
     const functionVariables = variableStatements.filter((v) => {
       const declaration = (v.tree as VariableStatement).declarationList
@@ -279,8 +253,9 @@ class Explorer {
   }
 
   // Finds a function by name, checking function declarations, variable statements with functions, and method declarations
-  findFunction(name: string): Explorer {
-    const functions = this.findFunctions();
+  // If withVariables is true, it includes function expressions and arrow functions assigned to variables
+  findFunction(name: string, withVariables: boolean = false): Explorer {
+    const functions = this.findFunctions(withVariables);
     const cb = (f: Explorer) => {
       if (f.tree?.kind === SyntaxKind.FunctionDeclaration) {
         return (f.tree as FunctionDeclaration).name?.text === name;
@@ -291,18 +266,14 @@ class Explorer {
           .declarations[0];
         return (declaration.name as Identifier).text === name;
       }
-
-      if (f.tree?.kind === SyntaxKind.MethodDeclaration) {
-        return ((f.tree as MethodDeclaration).name as Identifier).text === name;
-      }
     };
 
     return functions.find(cb) ?? new Explorer();
   }
 
   // Checks if a function with the given name exists in the current tree
-  hasFunction(name: string): boolean {
-    return !this.findFunction(name).isEmpty();
+  hasFunction(name: string, withVariables: boolean = false): boolean {
+    return !this.findFunction(name, withVariables).isEmpty();
   }
 
   // Checks if a function (function declaration, method, arrow function, or function expression) has a specific return type annotation
@@ -354,7 +325,7 @@ class Explorer {
     // Check return type if we found a function node
     if (functionNode && functionNode.type) {
       const returnAnnotation = new Explorer(functionNode.type);
-      return returnAnnotation.equals(annotation);
+      return returnAnnotation.matches(annotation);
     }
 
     return false;
@@ -389,6 +360,7 @@ class Explorer {
     return [];
   }
 
+  // Finds all type alias declarations in the current tree
   findTypes(): Explorer[] {
     return this.findAll(SyntaxKind.TypeAliasDeclaration);
   }
@@ -422,6 +394,49 @@ class Explorer {
   // Checks if an interface declaration with the given name exists in the current tree
   hasInterface(name: string): boolean {
     return !this.findInterface(name).isEmpty();
+  }
+
+  // Finds all class declarations in the current tree
+  findClasses(): Explorer[] {
+    return this.findAll(SyntaxKind.ClassDeclaration);
+  }
+
+  // Finds a class declaration by name
+  findClass(name: string): Explorer {
+    const classes = this.findClasses();
+    const cb = (c: Explorer) =>
+      (c.tree as ClassDeclaration).name?.text === name;
+    return classes.find(cb) ?? new Explorer();
+  }
+
+  // Checks if a class declaration with the given name exists in the current tree
+  hasClass(name: string): boolean {
+    return !this.findClass(name).isEmpty();
+  }
+
+  // Finds all method declarations within a class
+  findMethods(): Explorer[] {
+    if (this.tree?.kind === SyntaxKind.ClassDeclaration) {
+      const classDecl = this.tree as ClassDeclaration;
+      return classDecl.members
+        .filter((member) => member.kind === SyntaxKind.MethodDeclaration)
+        .map((method) => new Explorer(method));
+    }
+
+    return [];
+  }
+
+  // Finds a method declaration by name within a class
+  findMethod(name: string): Explorer {
+    const methods = this.findMethods();
+    const cb = (m: Explorer) =>
+      ((m.tree as MethodDeclaration).name as Identifier).text === name;
+    return methods.find(cb) ?? new Explorer();
+  }
+
+  // Checks if a method declaration with the given name exists in the current tree
+  hasMethod(name: string): boolean {
+    return !this.findMethod(name).isEmpty();
   }
 }
 
