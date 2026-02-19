@@ -196,7 +196,6 @@ describe("functions", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
       const functions = explorer.findFunctions();
-      expect(Array.isArray(functions)).toBe(true);
       expect(functions).toHaveLength(0);
     });
 
@@ -341,17 +340,21 @@ describe("types", () => {
         "type Foo = { x: number; }; type Bar = { y: string; };";
       const explorer = new Explorer(sourceCode);
       const types = explorer.findTypes();
-      expect(Array.isArray(types)).toBe(true);
+      types.forEach((t) => expect(t).toBeInstanceOf(Explorer));
+    });
+
+    it("returns one entry per type", () => {
+      const sourceCode =
+        "type Foo = { x: number; }; type Bar = { y: string; };";
+      const explorer = new Explorer(sourceCode);
+      const types = explorer.findTypes();
       expect(types).toHaveLength(2);
-      expect(types[0]).toBeInstanceOf(Explorer);
-      expect(types[1]).toBeInstanceOf(Explorer);
     });
 
     it("returns an empty array if there are no types", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
       const types = explorer.findTypes();
-      expect(Array.isArray(types)).toBe(true);
       expect(types).toHaveLength(0);
     });
 
@@ -416,17 +419,21 @@ describe("interfaces", () => {
         "interface Foo { x: number; } interface Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
       const interfaces = explorer.findInterfaces();
-      expect(Array.isArray(interfaces)).toBe(true);
+      interfaces.forEach((i) => expect(i).toBeInstanceOf(Explorer));
+    });
+
+    it("returns one entry per interface", () => {
+      const sourceCode =
+        "interface Foo { x: number; } interface Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      const interfaces = explorer.findInterfaces();
       expect(interfaces).toHaveLength(2);
-      expect(interfaces[0]).toBeInstanceOf(Explorer);
-      expect(interfaces[1]).toBeInstanceOf(Explorer);
     });
 
     it("returns an empty array if there are no interfaces", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
       const interfaces = explorer.findInterfaces();
-      expect(Array.isArray(interfaces)).toBe(true);
       expect(interfaces).toHaveLength(0);
     });
 
@@ -480,6 +487,79 @@ describe("interfaces", () => {
         "interface Foo { x: number; } interface Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
       expect(explorer.hasInterface("Baz")).toBe(false);
+    });
+  });
+
+  describe("classes", () => {
+    describe("findClasses", () => {
+      it("returns an array of Explorer objects", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        const classes = explorer.findClasses();
+        classes.forEach((c) => expect(c).toBeInstanceOf(Explorer));
+      });
+
+      it("returns one entry per class", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        const classes = explorer.findClasses();
+        expect(classes).toHaveLength(2);
+      });
+
+      it("returns an empty array if there are no classes", () => {
+        const sourceCode = "const a = 1; const b = 2;";
+        const explorer = new Explorer(sourceCode);
+        const classes = explorer.findClasses();
+        expect(classes).toHaveLength(0);
+      });
+
+      it("finds only classes in the current scope", () => {
+        const sourceCode = `
+                    class Foo { x: number; }
+                    function bar() { class Baz { y: string; } }
+                `;
+        const explorer = new Explorer(sourceCode);
+        const classes = explorer.findClasses();
+        expect(classes).toHaveLength(1);
+        expect(classes[0].matches("class Foo { x: number; }")).toBe(true);
+      });
+    });
+
+    describe("findClass", () => {
+      it("returns an Explorer object for the specified class name", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        const classFoo = explorer.findClass("Foo");
+        expect(classFoo).toBeInstanceOf(Explorer);
+        expect(classFoo.matches("class Foo { x: number; }")).toBe(true);
+
+        const classBar = explorer.findClass("Bar");
+        expect(classBar).toBeInstanceOf(Explorer);
+        expect(classBar.matches("class Bar { y: string; }")).toBe(true);
+      });
+
+      it("returns an empty Explorer object if the specified class name is not found", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        const classBaz = explorer.findClass("Baz");
+        expect(classBaz).toBeInstanceOf(Explorer);
+        expect(classBaz.isEmpty()).toBe(true);
+      });
+    });
+
+    describe("hasClass", () => {
+      it("returns true if a class with the specified name exists", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        expect(explorer.hasClass("Foo")).toBe(true);
+        expect(explorer.hasClass("Bar")).toBe(true);
+      });
+
+      it("returns false if a class with the specified name does not exist", () => {
+        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+        const explorer = new Explorer(sourceCode);
+        expect(explorer.hasClass("Baz")).toBe(false);
+      });
     });
   });
 });
