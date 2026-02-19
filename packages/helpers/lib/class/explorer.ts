@@ -18,31 +18,47 @@ import {
   PropertyDeclaration,
 } from "typescript";
 
+function createSource(source: string): SourceFile {
+  return createSourceFile(
+    "inline.ts",
+    source,
+    ScriptTarget.Latest,
+    true,
+    ScriptKind.TS,
+  );
+}
+
 function createTree(
   code: Node | string,
-  isAnnotation: boolean = false,
+  node:
+    | SyntaxKind.TypeReference
+    | SyntaxKind.MethodDeclaration
+    | SyntaxKind.Unknown = SyntaxKind.Unknown,
 ): Node | null {
   if (typeof code === "string") {
     if (!code.trim()) {
       return null;
     }
 
-    const sourceText = isAnnotation ? `let _: ${code};` : code;
+    let sourceFile: SourceFile;
 
-    const sourceFile = createSourceFile(
-      "inline.ts",
-      sourceText,
-      ScriptTarget.Latest,
-      true,
-      ScriptKind.TS,
-    );
+    if (node === SyntaxKind.MethodDeclaration) {
+      sourceFile = createSource(`class _ { ${code} }`);
+      const classDecl = sourceFile.statements[0] as ClassDeclaration;
+      const methodDecl = classDecl.members.find(
+        (member) => member.kind === SyntaxKind.MethodDeclaration,
+      ) as MethodDeclaration | undefined;
+      return methodDecl || null;
+    }
 
-    if (isAnnotation) {
+    if (node === SyntaxKind.TypeReference) {
+      sourceFile = createSource(`let _: ${code};`);
       const varStatement = sourceFile.statements[0] as VariableStatement;
       const declaration = varStatement.declarationList.declarations[0];
       return declaration.type || null;
     }
 
+    sourceFile = createSource(code);
     return sourceFile.statements.length === 1
       ? sourceFile.statements[0]
       : sourceFile;
@@ -58,8 +74,14 @@ function createTree(
 class Explorer {
   private tree: Node | null;
 
-  constructor(tree: Node | string = "") {
-    this.tree = createTree(tree);
+  constructor(
+    tree: Node | string = "",
+    node:
+      | SyntaxKind.TypeReference
+      | SyntaxKind.MethodDeclaration
+      | SyntaxKind.Unknown = SyntaxKind.Unknown,
+  ) {
+    this.tree = createTree(tree, node);
   }
 
   isEmpty(): boolean {
@@ -72,8 +94,18 @@ class Explorer {
 
   // Compares the current tree with another tree, ignoring semicolons and whitespace
   matches(other: string | Explorer): boolean {
-    const otherExplorer =
-      typeof other === "string" ? new Explorer(other) : other;
+    let otherExplorer: Explorer;
+
+    if (typeof other === "string") {
+      // If current node is a MethodDeclaration, wrap the string in a class for proper parsing
+      if (this.tree?.kind === SyntaxKind.MethodDeclaration) {
+        otherExplorer = new Explorer(other, SyntaxKind.MethodDeclaration);
+      } else {
+        otherExplorer = new Explorer(other);
+      }
+    } else {
+      otherExplorer = other;
+    }
 
     if (this.isEmpty() || otherExplorer.isEmpty()) {
       return false;
@@ -219,7 +251,7 @@ class Explorer {
       return false;
     }
 
-    const annotationNode = createTree(annotation, true);
+    const annotationNode = createTree(annotation, SyntaxKind.TypeReference);
     if (annotationNode === null) {
       return false;
     }
@@ -441,3 +473,20 @@ class Explorer {
 }
 
 export { Explorer };
+
+const sourceCode = `
+                    class Foo { method1() {} }
+                    class Bar { method2() {} }
+                `;
+
+const explorer = new Explorer(sourceCode);
+console.log(
+  explorer.findClass("Foo").findMethod("method1").matches("method1() {}"),
+); // Should print the method declaration of method1
+console.log(
+  explorer.findClass("Bar").findMethod("method2").matches("method2() {}"),
+); // Should print the method declaration of method2
+console.log(explorer.findClass("Foo").hasMethod("method1")); // Should print true
+console.log(explorer.findClass("Bar").hasMethod("method2")); // Should print true
+console.log(explorer.findClass("Foo").hasMethod("method2")); // Should print false
+console.log(explorer.findClass("Bar").hasMethod("method1")); // Should print false
