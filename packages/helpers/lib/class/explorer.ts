@@ -71,6 +71,32 @@ function createTree(
   return code;
 }
 
+function permutate(array: string[]): string[][] {
+  if (array.length === 0) return [[]];
+
+  const result: string[][] = [];
+  for (let i = 0; i < array.length; i++) {
+    const current = array[i];
+    const remaining = array.slice(0, i).concat(array.slice(i + 1));
+    const remainingPermuted = permutate(remaining);
+    for (const perm of remainingPermuted) {
+      result.push([current, ...perm]);
+    }
+  }
+
+  return result;
+}
+
+function combine(array: string[][], symbol: string): string[] {
+  if (array.length === 0) return [];
+  const result: string[] = [];
+  for (const group of array) {
+    result.push(group.join(symbol));
+  }
+
+  return result;
+}
+
 class Explorer {
   private tree: Node | null;
 
@@ -242,6 +268,41 @@ class Explorer {
     }
 
     return new Explorer();
+  }
+
+  // Checks if the current node's type annotation is a union of the specified types
+  isUnionOf(types: string[]): boolean {
+    if (this.isEmpty()) {
+      return false;
+    }
+
+    if (this.tree?.kind !== SyntaxKind.UnionType) {
+      return false;
+    }
+
+    const expectedTypes = combine(permutate(types), " | ");
+
+    return expectedTypes.some((expected) => {
+      const expectedExplorer = new Explorer(expected, SyntaxKind.TypeReference);
+      return this.matches(expectedExplorer);
+    });
+  }
+
+  // Checks if the current node's type annotation is an intersection of the specified types
+  isIntersectionOf(types: string[]): boolean {
+    if (this.isEmpty()) {
+      return false;
+    }
+
+    if (this.tree?.kind !== SyntaxKind.IntersectionType) {
+      return false;
+    }
+
+    const expectedTypes = combine(permutate(types), " & ");
+    return expectedTypes.some((expected) => {
+      const expectedExplorer = new Explorer(expected, SyntaxKind.TypeReference);
+      return this.matches(expectedExplorer);
+    });
   }
 
   // Checks if the current node has a type annotation that matches the provided annotation string
@@ -473,20 +534,3 @@ class Explorer {
 }
 
 export { Explorer };
-
-const sourceCode = `
-                    class Foo { method1() {} }
-                    class Bar { method2() {} }
-                `;
-
-const explorer = new Explorer(sourceCode);
-console.log(
-  explorer.findClass("Foo").findMethod("method1").matches("method1() {}"),
-); // Should print the method declaration of method1
-console.log(
-  explorer.findClass("Bar").findMethod("method2").matches("method2() {}"),
-); // Should print the method declaration of method2
-console.log(explorer.findClass("Foo").hasMethod("method1")); // Should print true
-console.log(explorer.findClass("Bar").hasMethod("method2")); // Should print true
-console.log(explorer.findClass("Foo").hasMethod("method2")); // Should print false
-console.log(explorer.findClass("Bar").hasMethod("method1")); // Should print false
