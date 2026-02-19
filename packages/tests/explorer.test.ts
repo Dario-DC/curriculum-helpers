@@ -489,77 +489,155 @@ describe("interfaces", () => {
       expect(explorer.hasInterface("Baz")).toBe(false);
     });
   });
+});
 
-  describe("classes", () => {
-    describe("findClasses", () => {
-      it("returns an array of Explorer objects", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        const classes = explorer.findClasses();
-        classes.forEach((c) => expect(c).toBeInstanceOf(Explorer));
-      });
+describe("classes", () => {
+  describe("findClasses", () => {
+    it("returns an array of Explorer objects", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      const classes = explorer.findClasses();
+      classes.forEach((c) => expect(c).toBeInstanceOf(Explorer));
+    });
 
-      it("returns one entry per class", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        const classes = explorer.findClasses();
-        expect(classes).toHaveLength(2);
-      });
+    it("returns one entry per class", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      const classes = explorer.findClasses();
+      expect(classes).toHaveLength(2);
+    });
 
-      it("returns an empty array if there are no classes", () => {
-        const sourceCode = "const a = 1; const b = 2;";
-        const explorer = new Explorer(sourceCode);
-        const classes = explorer.findClasses();
-        expect(classes).toHaveLength(0);
-      });
+    it("returns an empty array if there are no classes", () => {
+      const sourceCode = "const a = 1; const b = 2;";
+      const explorer = new Explorer(sourceCode);
+      const classes = explorer.findClasses();
+      expect(classes).toHaveLength(0);
+    });
 
-      it("finds only classes in the current scope", () => {
-        const sourceCode = `
+    it("finds only classes in the current scope", () => {
+      const sourceCode = `
                     class Foo { x: number; }
                     function bar() { class Baz { y: string; } }
                 `;
-        const explorer = new Explorer(sourceCode);
-        const classes = explorer.findClasses();
-        expect(classes).toHaveLength(1);
-        expect(classes[0].matches("class Foo { x: number; }")).toBe(true);
-      });
+      const explorer = new Explorer(sourceCode);
+      const classes = explorer.findClasses();
+      expect(classes).toHaveLength(1);
+      expect(classes[0].matches("class Foo { x: number; }")).toBe(true);
+    });
+  });
+
+  describe("findClass", () => {
+    it("returns an Explorer object for the specified class name", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      const classFoo = explorer.findClass("Foo");
+      expect(classFoo).toBeInstanceOf(Explorer);
+      expect(classFoo.matches("class Foo { x: number; }")).toBe(true);
+
+      const classBar = explorer.findClass("Bar");
+      expect(classBar).toBeInstanceOf(Explorer);
+      expect(classBar.matches("class Bar { y: string; }")).toBe(true);
     });
 
-    describe("findClass", () => {
-      it("returns an Explorer object for the specified class name", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        const classFoo = explorer.findClass("Foo");
-        expect(classFoo).toBeInstanceOf(Explorer);
-        expect(classFoo.matches("class Foo { x: number; }")).toBe(true);
+    it("returns an empty Explorer object if the specified class name is not found", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      const classBaz = explorer.findClass("Baz");
+      expect(classBaz).toBeInstanceOf(Explorer);
+      expect(classBaz.isEmpty()).toBe(true);
+    });
+  });
 
-        const classBar = explorer.findClass("Bar");
-        expect(classBar).toBeInstanceOf(Explorer);
-        expect(classBar.matches("class Bar { y: string; }")).toBe(true);
-      });
-
-      it("returns an empty Explorer object if the specified class name is not found", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        const classBaz = explorer.findClass("Baz");
-        expect(classBaz).toBeInstanceOf(Explorer);
-        expect(classBaz.isEmpty()).toBe(true);
-      });
+  describe("hasClass", () => {
+    it("returns true if a class with the specified name exists", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.hasClass("Foo")).toBe(true);
+      expect(explorer.hasClass("Bar")).toBe(true);
     });
 
-    describe("hasClass", () => {
-      it("returns true if a class with the specified name exists", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        expect(explorer.hasClass("Foo")).toBe(true);
-        expect(explorer.hasClass("Bar")).toBe(true);
-      });
+    it("returns false if a class with the specified name does not exist", () => {
+      const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.hasClass("Baz")).toBe(false);
+    });
+  });
+});
 
-      it("returns false if a class with the specified name does not exist", () => {
-        const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
-        const explorer = new Explorer(sourceCode);
-        expect(explorer.hasClass("Baz")).toBe(false);
-      });
+describe("methods", () => {
+  describe("findMethods", () => {
+    it("returns an array of Explorer objects", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const methods = explorer.findMethods();
+      methods.forEach((m) => expect(m).toBeInstanceOf(Explorer));
+    });
+
+    it("returns one entry per method", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const methods = explorer.findMethods();
+      expect(methods).toHaveLength(2);
+    });
+
+    it("returns an empty array if there are no methods", () => {
+      const sourceCode = "class Foo { }";
+      const explorer = new Explorer(sourceCode);
+      const methods = explorer.findMethods();
+      expect(methods).toHaveLength(0);
+    });
+
+    it("finds only methods in the current class", () => {
+      const sourceCode = `
+                    class Foo { method1() {} }
+                    class Bar { method2() {} }
+                `;
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      const methods = fooClass.findMethods();
+      expect(methods).toHaveLength(1);
+      expect(methods[0].matches("method1() {}")).toBe(true);
+    });
+  });
+
+  describe("findMethod", () => {
+    it("returns an Explorer object for the specified method name", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      const method1 = fooClass.findMethod("method1");
+      expect(method1).toBeInstanceOf(Explorer);
+      expect(method1.matches("method1() {}")).toBe(true);
+
+      const method2 = fooClass.findMethod("method2");
+      expect(method2).toBeInstanceOf(Explorer);
+      expect(method2.matches("method2() {}")).toBe(true);
+    });
+
+    it("returns an empty Explorer object if the specified method name is not found", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      const method3 = fooClass.findMethod("method3");
+      expect(method3).toBeInstanceOf(Explorer);
+      expect(method3.isEmpty()).toBe(true);
+    });
+  });
+
+  describe("hasMethod", () => {
+    it("returns true if a method with the specified name exists", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      expect(fooClass.hasMethod("method1")).toBe(true);
+      expect(fooClass.hasMethod("method2")).toBe(true);
+    });
+
+    it("returns false if a method with the specified name does not exist", () => {
+      const sourceCode = "class Foo { method1() {} method2() {} }";
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      expect(fooClass.hasMethod("method3")).toBe(false);
     });
   });
 });
