@@ -16,6 +16,10 @@ import {
   ClassDeclaration,
   MethodDeclaration,
   PropertyDeclaration,
+  TypeElement,
+  TypeLiteralNode,
+  NodeArray,
+  PropertySignature,
 } from "typescript";
 
 function createSource(source: string): SourceFile {
@@ -418,7 +422,11 @@ class Explorer {
     // Check return type if we found a function node
     if (functionNode && functionNode.type) {
       const returnAnnotation = new Explorer(functionNode.type);
-      return returnAnnotation.matches(annotation);
+      const explorerAnnotation = new Explorer(
+        annotation,
+        SyntaxKind.TypeReference,
+      );
+      return returnAnnotation.matches(explorerAnnotation);
     }
 
     return false;
@@ -530,6 +538,139 @@ class Explorer {
   // Checks if a method declaration with the given name exists in the current tree
   hasMethod(name: string): boolean {
     return !this.findMethod(name).isEmpty();
+  }
+
+  // Finds all properties in a class
+  findClassProps(): Explorer[] {
+    if (!this.tree || this.tree.kind !== SyntaxKind.ClassDeclaration) {
+      return [];
+    }
+
+    const classDecl = this.tree as ClassDeclaration;
+    const properties: Explorer[] = [];
+
+    classDecl.members.forEach((member) => {
+      if (member.kind === SyntaxKind.PropertyDeclaration) {
+        properties.push(new Explorer(member));
+      }
+    });
+
+    return properties;
+  }
+
+  // Finds a specific property in a class by name
+  findClassProp(name: string): Explorer {
+    const properties = this.findClassProps();
+    const cb = (p: Explorer) =>
+      ((p.tree as PropertyDeclaration).name as Identifier).text === name;
+    return properties.find(cb) ?? new Explorer();
+  }
+
+  // Checks if a class has a property with the given name
+  hasClassProp(name: string): boolean {
+    return !this.findClassProp(name).isEmpty();
+  }
+
+  // Checks if a property with the given name (and optionally type and optionality) exists in the current tree, which can be an interface, type literal, or variable statement with a type literal annotation
+  hasTypeProp(name: string, type?: string, isOptional?: boolean): boolean {
+    if (!this.tree) {
+      return false;
+    }
+
+    let members: NodeArray<TypeElement> | undefined;
+
+    // Handle VariableStatement with TypeLiteral annotation
+    if (this.tree.kind === SyntaxKind.VariableStatement) {
+      const declaration = (this.tree as VariableStatement).declarationList
+        .declarations[0];
+      if (
+        declaration.type &&
+        declaration.type.kind === SyntaxKind.TypeLiteral
+      ) {
+        members = (declaration.type as TypeLiteralNode).members;
+      }
+    }
+
+    // Handle InterfaceDeclaration
+    if (!members && this.tree.kind === SyntaxKind.InterfaceDeclaration) {
+      members = (this.tree as InterfaceDeclaration).members;
+    }
+
+    // Handle TypeAliasDeclaration with TypeLiteral
+    if (!members && this.tree.kind === SyntaxKind.TypeAliasDeclaration) {
+      const typeAlias = this.tree as TypeAliasDeclaration;
+      if (typeAlias.type.kind === SyntaxKind.TypeLiteral) {
+        members = (typeAlias.type as TypeLiteralNode).members;
+      }
+    }
+
+    // Handle TypeLiteral directly
+    if (!members && this.tree.kind === SyntaxKind.TypeLiteral) {
+      members = (this.tree as TypeLiteralNode).members;
+    }
+
+    // Handle Parameter (for destructured parameters)
+    if (!members && this.tree.kind === SyntaxKind.Parameter) {
+      const param = this.tree as ParameterDeclaration;
+      if (param.type && param.type.kind === SyntaxKind.TypeLiteral) {
+        members = (param.type as TypeLiteralNode).members;
+      }
+    }
+
+    if (!members) {
+      return false;
+    }
+
+    const member = Array.from(members).find((m) => {
+      if (m.name && m.name.kind === SyntaxKind.Identifier) {
+        return m.name.text === name;
+      }
+
+      return false;
+    });
+
+    if (!member) {
+      return false;
+    }
+
+    // Check type if specified
+    if (type !== undefined) {
+      if (member.kind === SyntaxKind.PropertySignature) {
+        const propSig = member as PropertySignature;
+        if (!propSig.type) {
+          return false;
+        }
+
+        const memberType = new Explorer(propSig.type);
+        if (!memberType.matches(new Explorer(type, SyntaxKind.TypeReference))) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    // Check optionality if specified
+    if (isOptional !== undefined) {
+      if (member.kind === SyntaxKind.PropertySignature) {
+        const propSig = member as PropertySignature;
+        const memberIsOptional = propSig.questionToken !== undefined;
+        if (memberIsOptional !== isOptional) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  // Checks if all specified properties exist in the current tree, which can be an interface, type literal, or variable statement with a type literal annotation
+  hasTypeProps(
+    props: { name: string; type?: string; isOptional?: boolean }[],
+  ): boolean {
+    return props.every((prop) =>
+      this.hasTypeProp(prop.name, prop.type, prop.isOptional),
+    );
   }
 }
 
