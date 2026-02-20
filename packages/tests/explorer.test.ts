@@ -331,6 +331,95 @@ describe("functions", () => {
       expect(explorer.hasFunction("bar", true)).toBe(true);
     });
   });
+
+  describe("getParameters", () => {
+    it("returns an array of Explorer objects for the parameters of a function", () => {
+      const sourceCode = `
+                    function foo(x: number, y: string) { return 42; }
+                    const bar = (a: boolean) => 24;
+                    const baz = function(b: any, c: string) { return 42; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo");
+      const parametersFoo = functionFoo.getParameters();
+      expect(parametersFoo).toHaveLength(2);
+      // TODO: handles comparison of parameters in matches().
+      // This doesn't ignore whitespace
+      expect(parametersFoo[0].toString()).toBe("x: number");
+      expect(parametersFoo[1].toString()).toBe("y: string");
+
+      const functionBar = explorer.findFunction("bar", true);
+      const parametersBar = functionBar.getParameters();
+      expect(parametersBar).toHaveLength(1);
+      expect(parametersBar[0].toString()).toBe("a: boolean");
+
+      const functionBaz = explorer.findFunction("baz", true);
+      const parametersBaz = functionBaz.getParameters();
+      expect(parametersBaz).toHaveLength(2);
+      expect(parametersBaz[0].toString()).toBe("b: any");
+      expect(parametersBaz[1].toString()).toBe("c: string");
+    });
+
+    it("returns an empty array if the function has no parameters", () => {
+      const sourceCode = `
+                    function foo() { return 42; }
+                    const bar = () => 24;
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo");
+      const parametersFoo = functionFoo.getParameters();
+      expect(parametersFoo).toHaveLength(0);
+
+      const functionBar = explorer.findFunction("bar", true);
+      const parametersBar = functionBar.getParameters();
+      expect(parametersBar).toHaveLength(0);
+    });
+  });
+
+  describe("hasReturnAnnotation", () => {
+    it("returns true if the function has the specified return type annotation", () => {
+      const sourceCode = `
+                    function foo(): number { return 42; }
+                    const bar = (): string => "hello";
+                    const baz = function(): boolean { return true; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo");
+      expect(functionFoo.hasReturnAnnotation("number")).toBe(true);
+
+      const functionBar = explorer.findFunction("bar", true);
+      expect(functionBar.hasReturnAnnotation("string")).toBe(true);
+
+      const functionBaz = explorer.findFunction("baz", true);
+      expect(functionBaz.hasReturnAnnotation("boolean")).toBe(true);
+    });
+
+    it("returns false if the function does not have the specified return type annotation", () => {
+      const sourceCode = `
+                    function foo(): number { return 42; }
+                    const bar = (): string => "hello";
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo");
+      expect(functionFoo.hasReturnAnnotation("string")).toBe(false);
+
+      const functionBar = explorer.findFunction("bar", true);
+      expect(functionBar.hasReturnAnnotation("number")).toBe(false);
+    });
+
+    it("returns false if the function has no return type annotation", () => {
+      const sourceCode = `
+                    function foo() { return 42; }
+                    const bar = () => "hello";
+                `;
+      const explorer = new Explorer(sourceCode);
+      const functionFoo = explorer.findFunction("foo");
+      expect(functionFoo.hasReturnAnnotation("number")).toBe(false);
+
+      const functionBar = explorer.findFunction("bar", true);
+      expect(functionBar.hasReturnAnnotation("string")).toBe(false);
+    });
+  });
 });
 
 describe("types", () => {
@@ -638,6 +727,339 @@ describe("methods", () => {
       const explorer = new Explorer(sourceCode);
       const fooClass = explorer.findClass("Foo");
       expect(fooClass.hasMethod("method3")).toBe(false);
+    });
+  });
+
+  describe("findClassProps", () => {
+    it("returns an array of Explorer objects", () => {
+      const sourceCode = `
+                    class Rectangle {
+                      constructor(height, width) {
+                        this.height = height;
+                        this.width = width;
+                      }
+                    }
+                    class Foo { prop1: number; prop2: string; }
+                `;
+      const explorer = new Explorer(sourceCode);
+      const rectangleClass = explorer.findClass("Rectangle");
+      const rectangleProps = rectangleClass.findClassProps();
+      rectangleProps.forEach((p) => expect(p).toBeInstanceOf(Explorer));
+
+      const fooClass = explorer.findClass("Foo");
+      const props = fooClass.findClassProps();
+      props.forEach((p) => expect(p).toBeInstanceOf(Explorer));
+    });
+
+    it("returns one entry per property", () => {
+      const sourceCode = `
+                    class Rectangle {
+                      constructor(height, width) {
+                        this.height = height;
+                        this.width = width;
+                      }
+                    }
+                    class Foo { prop1: number; prop2: string; }
+                `;
+      const explorer = new Explorer(sourceCode);
+      const rectangleClass = explorer.findClass("Rectangle");
+      const rectangleProps = rectangleClass.findClassProps();
+      // TODO: fix method to handleexpect(rectangleProps).toHaveLength(2);
+
+      const fooClass = explorer.findClass("Foo");
+      const props = fooClass.findClassProps();
+      expect(props).toHaveLength(2);
+    });
+
+    it("returns an empty array if there are no properties", () => {
+      const sourceCode = "class Foo { }";
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      const props = fooClass.findClassProps();
+      expect(props).toHaveLength(0);
+    });
+
+    it("finds only properties in the current class", () => {
+      const sourceCode = `
+                      class Foo { prop1: number; }
+                      class Bar { prop2: string; }
+                  `;
+      const explorer = new Explorer(sourceCode);
+      const fooClass = explorer.findClass("Foo");
+      const props = fooClass.findClassProps();
+      expect(props).toHaveLength(1);
+      // TODO: fix matches to handle expect(props[0].matches("prop1: number;")).toBe(true);
+    });
+  });
+
+  // TODO: describe("findClassProp", () => { });
+
+  // TODO:describe("hasClassProp", () => { });
+});
+
+describe("annotations", () => {
+  describe("getAnnotation", () => {
+    it("returns an Explorer object of the annotation if it exists in the tree", () => {
+      const sourceCode = `
+                    const a: number = 1;
+                    function foo(x: number, y: string): void { }
+                    interface Bar { x: number; }
+                    class Baz { spam: "spam" = "spam"; }
+                `;
+      const explorer = new Explorer(sourceCode);
+      const varAnnotation = explorer.findVariable("a").getAnnotation();
+      expect(varAnnotation).toBeInstanceOf(Explorer);
+      // TODO: handles comparison of annotations in matches(). This doesn't ignore whitespace
+      expect(varAnnotation.toString()).toBe("number");
+
+    });
+  });
+
+  describe("hasAnnotation", () => {
+    it("returns true if the specified annotation exists in the tree", () => {
+      const sourceCode = `
+                    const a: number = 1;
+                    function foo(x: number, y: string): void { }
+                    interface Bar { x: number; }
+                    class Baz { spam: "spam" = "spam"; }
+                `;
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.findVariable("a").hasAnnotation("number")).toBe(true);
+
+      const parametersFoo = explorer.findFunction("foo").getParameters();
+      expect(parametersFoo[0].hasAnnotation("number")).toBe(true);
+      expect(parametersFoo[1].hasAnnotation("string")).toBe(true);
+
+      // TODO: complete findTypeProp
+
+
+    });
+
+    it("returns false if the specified annotation does not exist in the tree", () => {
+      const sourceCode = `
+                    const a: number = 1;
+                    function foo(x: number, y: string): void { }
+                    interface Bar { x: number; }
+                    class Baz { spam: "spam" = "spam"; }
+                `;
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.findVariable("a").hasAnnotation("string")).toBe(false);
+
+      const parametersFoo = explorer.findFunction("foo").getParameters();
+      expect(parametersFoo[0].hasAnnotation("string")).toBe(false);
+      expect(parametersFoo[1].hasAnnotation("number")).toBe(false);
+
+    });
+
+    it("returns false if there are no annotations in the tree", () => {
+      const sourceCode = `
+                    const a = 1;
+                    function foo(x, y) { }
+                `;
+      const explorer = new Explorer(sourceCode);
+      expect(explorer.findVariable("a").hasAnnotation("number")).toBe(false);
+
+      const parametersFoo = explorer.findFunction("foo").getParameters();
+      expect(parametersFoo[0].hasAnnotation("number")).toBe(false);
+      expect(parametersFoo[1].hasAnnotation("string")).toBe(false);
+
+    });
+  });
+});
+
+describe("type props", () => {
+  describe("hasTypeProp", () => {
+    it("returns true if the specified type prop exists in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; };
+                    interface Bar { x: number; y: string; }
+                    let baz: { x: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x")).toBe(true);
+      expect(typeFoo.hasTypeProp("y")).toBe(true);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x")).toBe(true);
+      expect(interfaceBar.hasTypeProp("y")).toBe(true);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x")).toBe(true);
+      expect(varBaz.hasTypeProp("y")).toBe(true);
+    });
+
+    it("returns false if the specified type prop does not exist in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; };
+                    interface Bar { x: number; y: string; }
+                    let baz: { x: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("z")).toBe(false);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("z")).toBe(false);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("z")).toBe(false);
+    });
+    
+    it("returns false if there are no type props in the tree", () => {
+      const sourceCode = `
+                    type Foo = { };
+                    interface Bar { }
+                    let baz: { };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x")).toBe(false);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x")).toBe(false);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x")).toBe(false);
+    });
+
+    it("returns true if the specified prop has the specified type annotation in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; };
+                    interface Bar { x: number; y: string; }
+                    let baz: { x: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x", "number")).toBe(true);
+      expect(typeFoo.hasTypeProp("y", "string")).toBe(true);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x", "number")).toBe(true);
+      expect(interfaceBar.hasTypeProp("y", "string")).toBe(true);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x", "number")).toBe(true);
+      expect(varBaz.hasTypeProp("y", "string")).toBe(true);
+    });
+
+    it("returns false if the specified prop has a different type annotation in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; };
+                    interface Bar { x: number; y: string; }
+                    let baz: { x: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x", "string")).toBe(false);
+      expect(typeFoo.hasTypeProp("y", "number")).toBe(false);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x", "string")).toBe(false);
+      expect(interfaceBar.hasTypeProp("y", "number")).toBe(false);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x", "string")).toBe(false);
+      expect(varBaz.hasTypeProp("y", "number")).toBe(false);
+    });
+
+    it("returns true if the specified prop has the specified type annotation and is optional when isOptional is true", () => {
+      const sourceCode = `       
+                    type Foo = { x?: number; y?: string; };
+                    interface Bar { x?: number; y?: string; }
+                    let baz: { x?: number; y?: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x", "number", true)).toBe(true);
+      expect(typeFoo.hasTypeProp("y", "string", true)).toBe(true);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x", "number", true)).toBe(true);
+      expect(interfaceBar.hasTypeProp("y", "string", true)).toBe(true);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x", "number", true)).toBe(true);
+      expect(varBaz.hasTypeProp("y", "string", true)).toBe(true);
+    });
+
+    it("returns false if the specified prop is optional but isOptional is false", () => {
+      const sourceCode = `       
+                    type Foo = { x?: number; y?: string; };
+                    interface Bar { x?: number; y?: string; }
+                    let baz: { x?: number; y?: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x", "number", false)).toBe(false);
+      expect(typeFoo.hasTypeProp("y", "string", false)).toBe(false);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x", "number", false)).toBe(false);
+      expect(interfaceBar.hasTypeProp("y", "string", false)).toBe(false);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x", "number", false)).toBe(false);
+      expect(varBaz.hasTypeProp("y", "string", false)).toBe(false);
+    });
+
+    it("ignores the type annotation when the type argument is undefined", () => {
+      const sourceCode = `       
+                    type Foo = { x?: number; y: string; };
+                    interface Bar { x: number; y?: string; }
+                    let baz: { x?: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProp("x", undefined, true)).toBe(true);
+      expect(typeFoo.hasTypeProp("y", undefined, true)).toBe(false);
+      expect(typeFoo.hasTypeProp("y", undefined, false)).toBe(true);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProp("x", undefined, false)).toBe(true);
+      expect(interfaceBar.hasTypeProp("x", undefined, true)).toBe(false);
+      expect(interfaceBar.hasTypeProp("y", undefined, true)).toBe(true);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProp("x", undefined, true)).toBe(true);
+      expect(varBaz.hasTypeProp("y", undefined, false)).toBe(true);
+      expect(varBaz.hasTypeProp("y", undefined, true)).toBe(false);
+    });
+  });
+
+  describe("hasTypeProps", () => {
+    it("returns true if the specified type props exist in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; z: boolean; };
+                    interface Bar { x: number; y?: string; }
+                    let baz: { x?: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProps([{name: "x", type: "number"}, {name: "y", type: "string"}])).toBe(true);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProps([{name: "x", type: "number"}, {name: "y", type: "string", isOptional: true}])).toBe(true);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProps([{name: "x", isOptional: true}, {name: "y"}])).toBe(true);
+    });
+
+    it("returns false if any of the specified type props do not exist in the tree", () => {
+      const sourceCode = `
+                    type Foo = { x: number; y: string; z: boolean; };
+                    interface Bar { x: number; y?: string; }
+                    let baz: { x?: number; y: string; };
+                `;
+      const explorer = new Explorer(sourceCode);
+      const typeFoo = explorer.findType("Foo");
+      expect(typeFoo.hasTypeProps([{name: "x", type: "number"}, {name: "a", type: "string"}])).toBe(false);
+
+      const interfaceBar = explorer.findInterface("Bar");
+      expect(interfaceBar.hasTypeProps([{name: "x", type: "number"}, {name: "a", type: "string", isOptional: true}])).toBe(false);
+
+      const varBaz = explorer.findVariable("baz");
+      expect(varBaz.hasTypeProps([{name: "x", isOptional: false}])).toBe(false);
     });
   });
 });
