@@ -575,42 +575,44 @@ class Explorer {
       return false;
     }
 
-    let members: NodeArray<TypeElement> | undefined;
+    function findMembers(tree: Node): NodeArray<TypeElement> | undefined {
+      // Handle VariableStatement with TypeLiteral annotation
+      if (tree.kind === SyntaxKind.VariableStatement) {
+        const declaration = (tree as VariableStatement).declarationList
+          .declarations[0];
+        return declaration.type?.kind === SyntaxKind.TypeLiteral
+          ? (declaration.type as TypeLiteralNode).members
+          : undefined;
+      }
 
-    // Handle VariableStatement with TypeLiteral annotation
-    if (this.tree.kind === SyntaxKind.VariableStatement) {
-      const declaration = (this.tree as VariableStatement).declarationList
-        .declarations[0];
-      if (declaration.type?.kind === SyntaxKind.TypeLiteral) {
-        members = (declaration.type as TypeLiteralNode).members;
+      // Handle InterfaceDeclaration
+      if (tree.kind === SyntaxKind.InterfaceDeclaration) {
+        return (tree as InterfaceDeclaration).members;
+      }
+
+      // Handle TypeAliasDeclaration with TypeLiteral
+      if (tree.kind === SyntaxKind.TypeAliasDeclaration) {
+        const typeAlias = tree as TypeAliasDeclaration;
+        return typeAlias.type.kind === SyntaxKind.TypeLiteral
+          ? (typeAlias.type as TypeLiteralNode).members
+          : undefined;
+      }
+
+      // Handle TypeLiteral directly
+      if (tree.kind === SyntaxKind.TypeLiteral) {
+        return (tree as TypeLiteralNode).members;
+      }
+
+      // Handle Parameter (for destructured parameters)
+      if (tree.kind === SyntaxKind.Parameter) {
+        const param = tree as ParameterDeclaration;
+        return param.type?.kind === SyntaxKind.TypeLiteral
+          ? (param.type as TypeLiteralNode).members
+          : undefined;
       }
     }
 
-    // Handle InterfaceDeclaration
-    if (!members && this.tree.kind === SyntaxKind.InterfaceDeclaration) {
-      members = (this.tree as InterfaceDeclaration).members;
-    }
-
-    // Handle TypeAliasDeclaration with TypeLiteral
-    if (!members && this.tree.kind === SyntaxKind.TypeAliasDeclaration) {
-      const typeAlias = this.tree as TypeAliasDeclaration;
-      if (typeAlias.type.kind === SyntaxKind.TypeLiteral) {
-        members = (typeAlias.type as TypeLiteralNode).members;
-      }
-    }
-
-    // Handle TypeLiteral directly
-    if (!members && this.tree.kind === SyntaxKind.TypeLiteral) {
-      members = (this.tree as TypeLiteralNode).members;
-    }
-
-    // Handle Parameter (for destructured parameters)
-    if (!members && this.tree.kind === SyntaxKind.Parameter) {
-      const param = this.tree as ParameterDeclaration;
-      if (param.type?.kind === SyntaxKind.TypeLiteral) {
-        members = (param.type as TypeLiteralNode).members;
-      }
-    }
+    const members = findMembers(this.tree);
 
     if (!members) {
       return false;
