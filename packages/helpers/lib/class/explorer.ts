@@ -409,9 +409,8 @@ class Explorer {
       const declaration = (this.tree as VariableStatement).declarationList
         .declarations[0];
       if (
-        declaration.initializer &&
-        (declaration.initializer.kind === SyntaxKind.ArrowFunction ||
-          declaration.initializer.kind === SyntaxKind.FunctionExpression)
+        declaration.initializer?.kind === SyntaxKind.ArrowFunction ||
+        declaration.initializer?.kind === SyntaxKind.FunctionExpression
       ) {
         functionNode = declaration.initializer as
           | ArrowFunction
@@ -420,7 +419,7 @@ class Explorer {
     }
 
     // Check return type if we found a function node
-    if (functionNode && functionNode.type) {
+    if (functionNode?.type) {
       const returnAnnotation = new Explorer(functionNode.type);
       const explorerAnnotation = new Explorer(
         annotation,
@@ -447,9 +446,8 @@ class Explorer {
       const declaration = (this.tree as VariableStatement).declarationList
         .declarations[0];
       if (
-        declaration.initializer &&
-        (declaration.initializer.kind === SyntaxKind.ArrowFunction ||
-          declaration.initializer.kind === SyntaxKind.FunctionExpression)
+        declaration.initializer?.kind === SyntaxKind.ArrowFunction ||
+        declaration.initializer?.kind === SyntaxKind.FunctionExpression
       ) {
         const funcExpr = declaration.initializer as
           | ArrowFunction
@@ -583,10 +581,7 @@ class Explorer {
     if (this.tree.kind === SyntaxKind.VariableStatement) {
       const declaration = (this.tree as VariableStatement).declarationList
         .declarations[0];
-      if (
-        declaration.type &&
-        declaration.type.kind === SyntaxKind.TypeLiteral
-      ) {
+      if (declaration.type?.kind === SyntaxKind.TypeLiteral) {
         members = (declaration.type as TypeLiteralNode).members;
       }
     }
@@ -612,7 +607,7 @@ class Explorer {
     // Handle Parameter (for destructured parameters)
     if (!members && this.tree.kind === SyntaxKind.Parameter) {
       const param = this.tree as ParameterDeclaration;
-      if (param.type && param.type.kind === SyntaxKind.TypeLiteral) {
+      if (param.type?.kind === SyntaxKind.TypeLiteral) {
         members = (param.type as TypeLiteralNode).members;
       }
     }
@@ -622,7 +617,7 @@ class Explorer {
     }
 
     const member = Array.from(members).find((m) => {
-      if (m.name && m.name.kind === SyntaxKind.Identifier) {
+      if (m.name?.kind === SyntaxKind.Identifier) {
         return m.name.text === name;
       }
 
