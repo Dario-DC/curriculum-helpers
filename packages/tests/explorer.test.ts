@@ -98,25 +98,25 @@ describe("equals", () => {
 });
 
 describe("variables", () => {
-  describe("findVariables", () => {
+  describe("getVariables", () => {
     it("returns an array of Explorer objects", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const variables = explorer.findVariables();
+      const variables = explorer.getVariables();
       variables.forEach((v) => expect(v).toBeInstanceOf(Explorer));
     });
 
     it("returns one entry per variable", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const variables = explorer.findVariables();
+      const variables = explorer.getVariables();
       expect(variables).toHaveLength(2);
     });
 
     it("returns an empty array if there are no variables", () => {
       const sourceCode = "function foo() { return 42; }";
       const explorer = new Explorer(sourceCode);
-      const variables = explorer.findVariables();
+      const variables = explorer.getVariables();
       expect(variables).toHaveLength(0);
     });
 
@@ -128,7 +128,7 @@ describe("variables", () => {
                     function foo() { const b = 2; };
                 `;
       const explorer = new Explorer(sourceCode);
-      const variables = explorer.findVariables();
+      const variables = explorer.getVariables();
       expect(variables).toHaveLength(3);
       expect(variables[0].matches("const a = 1;")).toBe(true);
       expect(variables[1].matches("const bar = () => 42;")).toBe(true);
@@ -180,7 +180,7 @@ describe("functions", () => {
       const sourceCode =
         "function foo() { return 42; } function bar() { return 24; }";
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions();
+      const functions = explorer.getFunctions();
       functions.forEach((f) => expect(f).toBeInstanceOf(Explorer));
     });
 
@@ -188,14 +188,14 @@ describe("functions", () => {
       const sourceCode =
         "function foo() { return 42; } function bar() { return 24; }";
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions();
+      const functions = explorer.getFunctions();
       expect(functions).toHaveLength(2);
     });
 
     it("returns an empty array if there are no functions", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions();
+      const functions = explorer.getFunctions();
       expect(functions).toHaveLength(0);
     });
 
@@ -205,7 +205,7 @@ describe("functions", () => {
                     function bar() { function baz() { return 24; } }
                 `;
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions();
+      const functions = explorer.getFunctions();
       expect(functions).toHaveLength(2);
       expect(functions[0].matches("function foo() { return 42; }")).toBe(true);
       expect(
@@ -221,7 +221,7 @@ describe("functions", () => {
                     const bar = () => 24;
                 `;
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions();
+      const functions = explorer.getFunctions();
       expect(functions).toHaveLength(0);
     });
 
@@ -231,7 +231,7 @@ describe("functions", () => {
                     const bar = () => 24;
                 `;
       const explorer = new Explorer(sourceCode);
-      const functions = explorer.findFunctions(true);
+      const functions = explorer.getFunctions(true);
       expect(functions).toHaveLength(2);
     });
   });
@@ -428,7 +428,7 @@ describe("types", () => {
       const sourceCode =
         "type Foo = { x: number; }; type Bar = { y: string; };";
       const explorer = new Explorer(sourceCode);
-      const types = explorer.findTypes();
+      const types = explorer.getTypes();
       types.forEach((t) => expect(t).toBeInstanceOf(Explorer));
     });
 
@@ -436,14 +436,14 @@ describe("types", () => {
       const sourceCode =
         "type Foo = { x: number; }; type Bar = { y: string; };";
       const explorer = new Explorer(sourceCode);
-      const types = explorer.findTypes();
+      const types = explorer.getTypes();
       expect(types).toHaveLength(2);
     });
 
     it("returns an empty array if there are no types", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const types = explorer.findTypes();
+      const types = explorer.getTypes();
       expect(types).toHaveLength(0);
     });
 
@@ -453,7 +453,7 @@ describe("types", () => {
                     function bar() { type Baz = { y: string; }; }
                 `;
       const explorer = new Explorer(sourceCode);
-      const types = explorer.findTypes();
+      const types = explorer.getTypes();
       expect(types).toHaveLength(1);
       expect(types[0].matches("type Foo = { x: number; };")).toBe(true);
     });
@@ -507,7 +507,7 @@ describe("interfaces", () => {
       const sourceCode =
         "interface Foo { x: number; } interface Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
-      const interfaces = explorer.findInterfaces();
+      const interfaces = explorer.getInterfaces();
       interfaces.forEach((i) => expect(i).toBeInstanceOf(Explorer));
     });
 
@@ -515,14 +515,14 @@ describe("interfaces", () => {
       const sourceCode =
         "interface Foo { x: number; } interface Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
-      const interfaces = explorer.findInterfaces();
+      const interfaces = explorer.getInterfaces();
       expect(interfaces).toHaveLength(2);
     });
 
     it("returns an empty array if there are no interfaces", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const interfaces = explorer.findInterfaces();
+      const interfaces = explorer.getInterfaces();
       expect(interfaces).toHaveLength(0);
     });
 
@@ -532,7 +532,7 @@ describe("interfaces", () => {
                     function bar() { interface Baz { y: string; } }
                 `;
       const explorer = new Explorer(sourceCode);
-      const interfaces = explorer.findInterfaces();
+      const interfaces = explorer.getInterfaces();
       expect(interfaces).toHaveLength(1);
       expect(interfaces[0].matches("interface Foo { x: number; }")).toBe(true);
     });
@@ -585,21 +585,21 @@ describe("classes", () => {
     it("returns an array of Explorer objects", () => {
       const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
-      const classes = explorer.findClasses();
+      const classes = explorer.getClasses();
       classes.forEach((c) => expect(c).toBeInstanceOf(Explorer));
     });
 
     it("returns one entry per class", () => {
       const sourceCode = "class Foo { x: number; } class Bar { y: string; }";
       const explorer = new Explorer(sourceCode);
-      const classes = explorer.findClasses();
+      const classes = explorer.getClasses();
       expect(classes).toHaveLength(2);
     });
 
     it("returns an empty array if there are no classes", () => {
       const sourceCode = "const a = 1; const b = 2;";
       const explorer = new Explorer(sourceCode);
-      const classes = explorer.findClasses();
+      const classes = explorer.getClasses();
       expect(classes).toHaveLength(0);
     });
 
@@ -609,7 +609,7 @@ describe("classes", () => {
                     function bar() { class Baz { y: string; } }
                 `;
       const explorer = new Explorer(sourceCode);
-      const classes = explorer.findClasses();
+      const classes = explorer.getClasses();
       expect(classes).toHaveLength(1);
       expect(classes[0].matches("class Foo { x: number; }")).toBe(true);
     });

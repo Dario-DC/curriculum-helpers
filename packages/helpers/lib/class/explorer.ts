@@ -137,7 +137,7 @@ class Explorer {
   }
 
   // Finds all nodes of a specific kind in the tree
-  findAll(kind: SyntaxKind): Explorer[] {
+  getAll(kind: SyntaxKind): Explorer[] {
     if (this.isEmpty()) {
       return [];
     }
@@ -164,13 +164,13 @@ class Explorer {
   }
 
   // Finds all variable statements
-  findVariables(): Explorer[] {
-    return this.findAll(SyntaxKind.VariableStatement);
+  getVariables(): Explorer[] {
+    return this.getAll(SyntaxKind.VariableStatement);
   }
 
   // Finds a variable by name, excluding function declarations
   findVariable(name: string): Explorer {
-    const variables = this.findVariables();
+    const variables = this.getVariables();
     const cb = (v: Explorer) =>
       (
         (v.tree as VariableStatement).declarationList.declarations[0]
@@ -243,13 +243,13 @@ class Explorer {
   }
 
   // Finds all functions in the current tree. If withVariables is true, it includes function expressions and arrow functions assigned to variables
-  findFunctions(withVariables: boolean = false): Explorer[] {
-    const functionDeclarations = this.findAll(SyntaxKind.FunctionDeclaration);
+  getFunctions(withVariables: boolean = false): Explorer[] {
+    const functionDeclarations = this.getAll(SyntaxKind.FunctionDeclaration);
     if (!withVariables) {
       return functionDeclarations;
     }
 
-    const variableStatements = this.findAll(SyntaxKind.VariableStatement);
+    const variableStatements = this.getAll(SyntaxKind.VariableStatement);
     const functionVariables = variableStatements.filter((v) => {
       const declaration = (v.tree as VariableStatement).declarationList
         .declarations[0];
@@ -269,7 +269,7 @@ class Explorer {
   // Finds a function by name, checking function declarations, variable statements with functions, and method declarations
   // If withVariables is true, it includes function expressions and arrow functions assigned to variables
   findFunction(name: string, withVariables: boolean = false): Explorer {
-    const functions = this.findFunctions(withVariables);
+    const functions = this.getFunctions(withVariables);
     const cb = (f: Explorer) => {
       if (f.tree?.kind === SyntaxKind.FunctionDeclaration) {
         return (f.tree as FunctionDeclaration).name?.text === name;
@@ -377,13 +377,13 @@ class Explorer {
   }
 
   // Finds all type alias declarations in the current tree
-  findTypes(): Explorer[] {
-    return this.findAll(SyntaxKind.TypeAliasDeclaration);
+  getTypes(): Explorer[] {
+    return this.getAll(SyntaxKind.TypeAliasDeclaration);
   }
 
   // Finds a type alias declaration by name
   findType(name: string): Explorer {
-    const types = this.findTypes();
+    const types = this.getTypes();
     const cb = (t: Explorer) =>
       (t.tree as TypeAliasDeclaration).name.text === name;
     return types.find(cb) ?? new Explorer();
@@ -395,13 +395,13 @@ class Explorer {
   }
 
   // Finds all interface declarations in the current tree
-  findInterfaces(): Explorer[] {
-    return this.findAll(SyntaxKind.InterfaceDeclaration);
+  getInterfaces(): Explorer[] {
+    return this.getAll(SyntaxKind.InterfaceDeclaration);
   }
 
   // Finds an interface declaration by name
   findInterface(name: string): Explorer {
-    const interfaces = this.findInterfaces();
+    const interfaces = this.getInterfaces();
     const cb = (i: Explorer) =>
       (i.tree as InterfaceDeclaration).name.text === name;
     return interfaces.find(cb) ?? new Explorer();
@@ -413,13 +413,13 @@ class Explorer {
   }
 
   // Finds all class declarations in the current tree
-  findClasses(): Explorer[] {
-    return this.findAll(SyntaxKind.ClassDeclaration);
+  getClasses(): Explorer[] {
+    return this.getAll(SyntaxKind.ClassDeclaration);
   }
 
   // Finds a class declaration by name
   findClass(name: string): Explorer {
-    const classes = this.findClasses();
+    const classes = this.getClasses();
     const cb = (c: Explorer) =>
       (c.tree as ClassDeclaration).name?.text === name;
     return classes.find(cb) ?? new Explorer();
