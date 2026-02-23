@@ -746,23 +746,27 @@ assert.deepEqual(data, { message: 'Mocked fetch in beforeEach!' });
     });
 
     it("should expose the Explorer class in the test environment", async () => {
-      const source = `const x: string = "test";`;
+      const source = `const x = "test";`;
 
-      const result = await page.evaluate(async (source) => {
-        const runner = await window.FCCTestRunner.createTestRunner({
-          type: "dom", // TODO: test all runner types
-          source,
-          code: {
-            contents: source,
-          },
-        });
-        return runner.runTest(`
+      const result = await page.evaluate(
+        async (source, type) => {
+          const runner = await window.FCCTestRunner.createTestRunner({
+            type, // TODO: test all runner types
+            source,
+            code: {
+              contents: source,
+            },
+          });
+          return runner.runTest(`
 const explorer = await __helpers.Explorer(code);
 
 assert.equal(explorer.hasVariable('y'), false)
 assert.equal(explorer.hasVariable('x'), true)
 `);
-      }, source);
+        },
+        source,
+        type,
+      );
 
       expect(result).toEqual({ pass: true });
     });

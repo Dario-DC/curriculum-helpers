@@ -17,7 +17,19 @@ export const compileForTests = () => {
   const result = spawnSync(
     "webpack",
     // We only need the test-runner to be compiled for testing.
-    ["--color", "--env", "development", "--config-name", "test-runner"],
+    [
+      "--color",
+      "--env",
+      "development",
+      "--config-name",
+      "test-runner-index",
+      "--config-name",
+      "test-runner-dom-test-evaluator",
+      "--config-name",
+      "test-runner-javascript-test-evaluator",
+      "--config-name",
+      "test-runner-python-test-evaluator",
+    ],
     {
       encoding: "utf8",
     },
