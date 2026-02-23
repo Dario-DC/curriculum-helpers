@@ -676,16 +676,29 @@ describe("methods", () => {
       expect(methods).toHaveLength(0);
     });
 
-    it("finds only methods in the current class", () => {
+    it("does not find methods unless called on a class Explorer", () => {
       const sourceCode = `
-                    class Foo { method1() {} }
-                    class Bar { method2() {} }
-                `;
+const x = 1;
+class Foo { method1() {} }
+`;
+
       const explorer = new Explorer(sourceCode);
-      const fooClass = explorer.findClass("Foo");
-      const methods = fooClass.findMethods();
-      expect(methods).toHaveLength(1);
-      expect(methods[0].matches("method1() {}")).toBe(true);
+      const methods = explorer.findMethods();
+      expect(methods).toHaveLength(0);
+
+      const classExplorer = explorer.findClass("Foo");
+      const methodsInClass = classExplorer.findMethods();
+      expect(methodsInClass).toHaveLength(1);
+    });
+
+    it("only finds methods when called on a single class Explorer", () => {
+      const sourceCode = `
+class Foo { method1() {} }
+class Bar { method2() {} }
+`;
+      const explorer = new Explorer(sourceCode);
+      const methods = explorer.findMethods();
+      expect(methods).toHaveLength(0);
     });
   });
 
@@ -693,12 +706,11 @@ describe("methods", () => {
     it("returns an Explorer object for the specified method name", () => {
       const sourceCode = "class Foo { method1() {} method2() {} }";
       const explorer = new Explorer(sourceCode);
-      const fooClass = explorer.findClass("Foo");
-      const method1 = fooClass.findMethod("method1");
+      const method1 = explorer.findMethod("method1");
       expect(method1).toBeInstanceOf(Explorer);
       expect(method1.matches("method1() {}")).toBe(true);
 
-      const method2 = fooClass.findMethod("method2");
+      const method2 = explorer.findMethod("method2");
       expect(method2).toBeInstanceOf(Explorer);
       expect(method2.matches("method2() {}")).toBe(true);
     });
@@ -706,8 +718,7 @@ describe("methods", () => {
     it("returns an empty Explorer object if the specified method name is not found", () => {
       const sourceCode = "class Foo { method1() {} method2() {} }";
       const explorer = new Explorer(sourceCode);
-      const fooClass = explorer.findClass("Foo");
-      const method3 = fooClass.findMethod("method3");
+      const method3 = explorer.findMethod("method3");
       expect(method3).toBeInstanceOf(Explorer);
       expect(method3.isEmpty()).toBe(true);
     });
@@ -717,16 +728,14 @@ describe("methods", () => {
     it("returns true if a method with the specified name exists", () => {
       const sourceCode = "class Foo { method1() {} method2() {} }";
       const explorer = new Explorer(sourceCode);
-      const fooClass = explorer.findClass("Foo");
-      expect(fooClass.hasMethod("method1")).toBe(true);
-      expect(fooClass.hasMethod("method2")).toBe(true);
+      expect(explorer.hasMethod("method1")).toBe(true);
+      expect(explorer.hasMethod("method2")).toBe(true);
     });
 
     it("returns false if a method with the specified name does not exist", () => {
       const sourceCode = "class Foo { method1() {} method2() {} }";
       const explorer = new Explorer(sourceCode);
-      const fooClass = explorer.findClass("Foo");
-      expect(fooClass.hasMethod("method3")).toBe(false);
+      expect(explorer.hasMethod("method3")).toBe(false);
     });
   });
 
@@ -799,7 +808,7 @@ describe("methods", () => {
 
 describe("annotations", () => {
   describe("getAnnotation", () => {
-    it("returns an Explorer object of the annotation if it exists in the tree", () => {
+    it("returns an Explorer object if the annotation exists", () => {
       const sourceCode = `
                     const a: number = 1;
                     function foo(x: number, y: string): void { }
@@ -811,12 +820,11 @@ describe("annotations", () => {
       expect(varAnnotation).toBeInstanceOf(Explorer);
       // TODO: handles comparison of annotations in matches(). This doesn't ignore whitespace
       expect(varAnnotation.toString()).toBe("number");
-
     });
   });
 
   describe("hasAnnotation", () => {
-    it("returns true if the specified annotation exists in the tree", () => {
+    it("returns true if the specified annotation exists", () => {
       const sourceCode = `
                     const a: number = 1;
                     function foo(x: number, y: string): void { }
@@ -831,11 +839,9 @@ describe("annotations", () => {
       expect(parametersFoo[1].hasAnnotation("string")).toBe(true);
 
       // TODO: complete findTypeProp
-
-
     });
 
-    it("returns false if the specified annotation does not exist in the tree", () => {
+    it("returns false if the annotation is different from the argument", () => {
       const sourceCode = `
                     const a: number = 1;
                     function foo(x: number, y: string): void { }
@@ -848,10 +854,9 @@ describe("annotations", () => {
       const parametersFoo = explorer.findFunction("foo").getParameters();
       expect(parametersFoo[0].hasAnnotation("string")).toBe(false);
       expect(parametersFoo[1].hasAnnotation("number")).toBe(false);
-
     });
 
-    it("returns false if there are no annotations in the tree", () => {
+    it("returns false if the value is not annotated", () => {
       const sourceCode = `
                     const a = 1;
                     function foo(x, y) { }
@@ -862,14 +867,13 @@ describe("annotations", () => {
       const parametersFoo = explorer.findFunction("foo").getParameters();
       expect(parametersFoo[0].hasAnnotation("number")).toBe(false);
       expect(parametersFoo[1].hasAnnotation("string")).toBe(false);
-
     });
   });
 });
 
 describe("type props", () => {
   describe("hasTypeProp", () => {
-    it("returns true if the specified type prop exists in the tree", () => {
+    it("returns true if the specified type prop exists", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; };
                     interface Bar { x: number; y: string; }
@@ -889,7 +893,7 @@ describe("type props", () => {
       expect(varBaz.hasTypeProp("y")).toBe(true);
     });
 
-    it("returns false if the specified type prop does not exist in the tree", () => {
+    it("returns false if the specified type prop does not exist", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; };
                     interface Bar { x: number; y: string; }
@@ -905,8 +909,8 @@ describe("type props", () => {
       const varBaz = explorer.findVariable("baz");
       expect(varBaz.hasTypeProp("z")).toBe(false);
     });
-    
-    it("returns false if there are no type props in the tree", () => {
+
+    it("returns false if there are no type props", () => {
       const sourceCode = `
                     type Foo = { };
                     interface Bar { }
@@ -923,7 +927,7 @@ describe("type props", () => {
       expect(varBaz.hasTypeProp("x")).toBe(false);
     });
 
-    it("returns true if the specified prop has the specified type annotation in the tree", () => {
+    it("returns true if the specified prop has the specified type annotation", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; };
                     interface Bar { x: number; y: string; }
@@ -943,7 +947,7 @@ describe("type props", () => {
       expect(varBaz.hasTypeProp("y", "string")).toBe(true);
     });
 
-    it("returns false if the specified prop has a different type annotation in the tree", () => {
+    it("returns false if the specified prop has a different type annotation", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; };
                     interface Bar { x: number; y: string; }
@@ -964,7 +968,7 @@ describe("type props", () => {
     });
 
     it("returns true if the specified prop has the specified type annotation and is optional when isOptional is true", () => {
-      const sourceCode = `       
+      const sourceCode = `
                     type Foo = { x?: number; y?: string; };
                     interface Bar { x?: number; y?: string; }
                     let baz: { x?: number; y?: string; };
@@ -984,7 +988,7 @@ describe("type props", () => {
     });
 
     it("returns false if the specified prop is optional but isOptional is false", () => {
-      const sourceCode = `       
+      const sourceCode = `
                     type Foo = { x?: number; y?: string; };
                     interface Bar { x?: number; y?: string; }
                     let baz: { x?: number; y?: string; };
@@ -1004,7 +1008,7 @@ describe("type props", () => {
     });
 
     it("ignores the type annotation when the type argument is undefined", () => {
-      const sourceCode = `       
+      const sourceCode = `
                     type Foo = { x?: number; y: string; };
                     interface Bar { x: number; y?: string; }
                     let baz: { x?: number; y: string; };
@@ -1028,7 +1032,7 @@ describe("type props", () => {
   });
 
   describe("hasTypeProps", () => {
-    it("returns true if the specified type props exist in the tree", () => {
+    it("returns true if the specified type props exist", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; z: boolean; };
                     interface Bar { x: number; y?: string; }
@@ -1036,16 +1040,28 @@ describe("type props", () => {
                 `;
       const explorer = new Explorer(sourceCode);
       const typeFoo = explorer.findType("Foo");
-      expect(typeFoo.hasTypeProps([{name: "x", type: "number"}, {name: "y", type: "string"}])).toBe(true);
+      expect(
+        typeFoo.hasTypeProps([
+          { name: "x", type: "number" },
+          { name: "y", type: "string" },
+        ]),
+      ).toBe(true);
 
       const interfaceBar = explorer.findInterface("Bar");
-      expect(interfaceBar.hasTypeProps([{name: "x", type: "number"}, {name: "y", type: "string", isOptional: true}])).toBe(true);
+      expect(
+        interfaceBar.hasTypeProps([
+          { name: "x", type: "number" },
+          { name: "y", type: "string", isOptional: true },
+        ]),
+      ).toBe(true);
 
       const varBaz = explorer.findVariable("baz");
-      expect(varBaz.hasTypeProps([{name: "x", isOptional: true}, {name: "y"}])).toBe(true);
+      expect(
+        varBaz.hasTypeProps([{ name: "x", isOptional: true }, { name: "y" }]),
+      ).toBe(true);
     });
 
-    it("returns false if any of the specified type props do not exist in the tree", () => {
+    it("returns false if any of the specified type props do not exist", () => {
       const sourceCode = `
                     type Foo = { x: number; y: string; z: boolean; };
                     interface Bar { x: number; y?: string; }
@@ -1053,13 +1069,25 @@ describe("type props", () => {
                 `;
       const explorer = new Explorer(sourceCode);
       const typeFoo = explorer.findType("Foo");
-      expect(typeFoo.hasTypeProps([{name: "x", type: "number"}, {name: "a", type: "string"}])).toBe(false);
+      expect(
+        typeFoo.hasTypeProps([
+          { name: "x", type: "number" },
+          { name: "a", type: "string" },
+        ]),
+      ).toBe(false);
 
       const interfaceBar = explorer.findInterface("Bar");
-      expect(interfaceBar.hasTypeProps([{name: "x", type: "number"}, {name: "a", type: "string", isOptional: true}])).toBe(false);
+      expect(
+        interfaceBar.hasTypeProps([
+          { name: "x", type: "number" },
+          { name: "a", type: "string", isOptional: true },
+        ]),
+      ).toBe(false);
 
       const varBaz = explorer.findVariable("baz");
-      expect(varBaz.hasTypeProps([{name: "x", isOptional: false}])).toBe(false);
+      expect(varBaz.hasTypeProps([{ name: "x", isOptional: false }])).toBe(
+        false,
+      );
     });
   });
 });
