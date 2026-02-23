@@ -772,6 +772,7 @@ class Bar { method2() {} }
                 `;
       const explorer = new Explorer(sourceCode);
       const rectangleClass = explorer.findClass("Rectangle");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const rectangleProps = rectangleClass.findClassProps();
       // TODO: fix method to handleexpect(rectangleProps).toHaveLength(2);
 
