@@ -34,7 +34,7 @@ function createSource(source: string): SourceFile {
 
 function createTree(
   code: string,
-  node:
+  kind:
     | SyntaxKind.TypeReference
     | SyntaxKind.MethodDeclaration
     | SyntaxKind.Unknown = SyntaxKind.Unknown,
@@ -66,7 +66,6 @@ function createTree(
     ? sourceFile.statements[0]
     : sourceFile;
 }
-
 
 const removeSemicolons = (nodes: readonly Node[]): Node[] =>
   nodes.filter(({ kind }) => kind !== SyntaxKind.SemicolonToken);
@@ -108,7 +107,7 @@ class Explorer {
       | SyntaxKind.MethodDeclaration
       | SyntaxKind.Unknown = SyntaxKind.Unknown,
   ) {
-    this.tree = typeof tree === "string" ? createTree(tree, node) : tree;
+    this.tree = typeof tree === "string" ? createTree(tree, syntaxKind) : tree;
   }
 
   isEmpty(): boolean {
@@ -135,6 +134,7 @@ class Explorer {
     }
 
     return areNodesEquivalent(this.tree, otherExplorer.tree);
+  }
 
   // Finds all nodes of a specific kind in the tree
   findAll(kind: SyntaxKind): Explorer[] {
@@ -224,41 +224,6 @@ class Explorer {
     }
 
     return new Explorer();
-  }
-
-  // Checks if the current node's type annotation is a union of the specified types
-  isUnionOf(types: string[]): boolean {
-    if (this.isEmpty()) {
-      return false;
-    }
-
-    if (this.tree?.kind !== SyntaxKind.UnionType) {
-      return false;
-    }
-
-    const expectedTypes = combine(permutate(types), " | ");
-
-    return expectedTypes.some((expected) => {
-      const expectedExplorer = new Explorer(expected, SyntaxKind.TypeReference);
-      return this.matches(expectedExplorer);
-    });
-  }
-
-  // Checks if the current node's type annotation is an intersection of the specified types
-  isIntersectionOf(types: string[]): boolean {
-    if (this.isEmpty()) {
-      return false;
-    }
-
-    if (this.tree?.kind !== SyntaxKind.IntersectionType) {
-      return false;
-    }
-
-    const expectedTypes = combine(permutate(types), " & ");
-    return expectedTypes.some((expected) => {
-      const expectedExplorer = new Explorer(expected, SyntaxKind.TypeReference);
-      return this.matches(expectedExplorer);
-    });
   }
 
   // Checks if the current node has a type annotation that matches the provided annotation string
