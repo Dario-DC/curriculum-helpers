@@ -33,85 +33,82 @@ function createSource(source: string): SourceFile {
 }
 
 function createTree(
-  code: Node | string,
+  code: string,
   node:
     | SyntaxKind.TypeReference
     | SyntaxKind.MethodDeclaration
     | SyntaxKind.Unknown = SyntaxKind.Unknown,
 ): Node | null {
-  if (typeof code === "string") {
-    if (!code.trim()) {
-      return null;
-    }
-
-    let sourceFile: SourceFile;
-
-    if (node === SyntaxKind.MethodDeclaration) {
-      sourceFile = createSource(`class _ { ${code} }`);
-      const classDecl = sourceFile.statements[0] as ClassDeclaration;
-      const methodDecl = classDecl.members.find(
-        (member) => member.kind === SyntaxKind.MethodDeclaration,
-      ) as MethodDeclaration | undefined;
-      return methodDecl || null;
-    }
-
-    if (node === SyntaxKind.TypeReference) {
-      sourceFile = createSource(`let _: ${code};`);
-      const varStatement = sourceFile.statements[0] as VariableStatement;
-      const declaration = varStatement.declarationList.declarations[0];
-      return declaration.type || null;
-    }
-
-    sourceFile = createSource(code);
-    return sourceFile.statements.length === 1
-      ? sourceFile.statements[0]
-      : sourceFile;
-  }
-
-  if (code.getText().trim() === "") {
+  if (!code.trim()) {
     return null;
   }
 
-  return code;
+  let sourceFile: SourceFile;
+
+  if (kind === SyntaxKind.MethodDeclaration) {
+    sourceFile = createSource(`class _ { ${code} }`);
+    const classDecl = sourceFile.statements[0] as ClassDeclaration;
+    const methodDecl = classDecl.members.find(
+      (member) => member.kind === SyntaxKind.MethodDeclaration,
+    ) as MethodDeclaration | undefined;
+    return methodDecl || null;
+  }
+
+  if (kind === SyntaxKind.TypeReference) {
+    sourceFile = createSource(`let _: ${code};`);
+    const varStatement = sourceFile.statements[0] as VariableStatement;
+    const declaration = varStatement.declarationList.declarations[0];
+    return declaration.type || null;
+  }
+
+  sourceFile = createSource(code);
+  return sourceFile.statements.length === 1
+    ? sourceFile.statements[0]
+    : sourceFile;
 }
 
-function permutate(array: string[]): string[][] {
-  if (array.length === 0) return [[]];
 
-  const result: string[][] = [];
-  for (let i = 0; i < array.length; i++) {
-    const current = array[i];
-    const remaining = array.slice(0, i).concat(array.slice(i + 1));
-    const remainingPermuted = permutate(remaining);
-    for (const perm of remainingPermuted) {
-      result.push([current, ...perm]);
+const removeSemicolons = (nodes: readonly Node[]): Node[] =>
+  nodes.filter(({ kind }) => kind !== SyntaxKind.SemicolonToken);
+
+const areNodesEquivalent = (
+  node1: Node | null,
+  node2: Node | null,
+): boolean => {
+  if (node1 === null && node2 === null) return true;
+  if (node1 === null || node2 === null) return false;
+  if (node1.kind !== node2.kind) return false;
+
+  const children1 = removeSemicolons(node1.getChildren());
+  const children2 = removeSemicolons(node2.getChildren());
+
+  if (children1.length === 0 && children2.length === 0) {
+    // Leaf node - compare text content
+    return node1.getText() === node2.getText();
+  }
+
+  if (children1.length !== children2.length) return false;
+
+  for (let i = 0; i < children1.length; i++) {
+    if (!areNodesEquivalent(children1[i], children2[i])) {
+      return false;
     }
   }
 
-  return result;
-}
-
-function combine(array: string[][], symbol: string): string[] {
-  if (array.length === 0) return [];
-  const result: string[] = [];
-  for (const group of array) {
-    result.push(group.join(symbol));
-  }
-
-  return result;
-}
+  return true;
+};
 
 class Explorer {
   private tree: Node | null;
 
   constructor(
     tree: Node | string = "",
-    node:
+    syntaxKind:
       | SyntaxKind.TypeReference
       | SyntaxKind.MethodDeclaration
       | SyntaxKind.Unknown = SyntaxKind.Unknown,
   ) {
-    this.tree = createTree(tree, node);
+    this.tree = typeof tree === "string" ? createTree(tree, node) : tree;
   }
 
   isEmpty(): boolean {
@@ -137,52 +134,7 @@ class Explorer {
       otherExplorer = other;
     }
 
-    if (this.isEmpty() || otherExplorer.isEmpty()) {
-      return false;
-    }
-
-    const SEMICOLON = SyntaxKind.SemicolonToken;
-
-    const filterChildren = (node: Node): Node[] => {
-      const children: Node[] = [];
-      for (let i = 0; i < node.getChildCount(); i++) {
-        const child = node.getChildAt(i);
-        if (child.kind !== SEMICOLON) {
-          children.push(child);
-        }
-      }
-
-      return children;
-    };
-
-    const compareNodes = (node1: Node, node2: Node): boolean => {
-      if (node1.kind !== node2.kind) {
-        return false;
-      }
-
-      const children1 = filterChildren(node1);
-      const children2 = filterChildren(node2);
-
-      if (children1.length === 0 && children2.length === 0) {
-        // Leaf node - compare text content
-        return node1.getText() === node2.getText();
-      }
-
-      if (children1.length !== children2.length) {
-        return false;
-      }
-
-      for (let i = 0; i < children1.length; i++) {
-        if (!compareNodes(children1[i], children2[i])) {
-          return false;
-        }
-      }
-
-      return true;
-    };
-
-    return compareNodes(this.tree as Node, otherExplorer.tree as Node);
-  }
+    return areNodesEquivalent(this.tree, otherExplorer.tree);
 
   // Finds all nodes of a specific kind in the tree
   findAll(kind: SyntaxKind): Explorer[] {
