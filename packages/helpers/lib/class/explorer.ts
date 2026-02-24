@@ -12,14 +12,25 @@ import {
   ArrowFunction,
   FunctionExpression,
   InterfaceDeclaration,
-  ParameterDeclaration,
   ClassDeclaration,
   MethodDeclaration,
   PropertyDeclaration,
   TypeElement,
-  TypeLiteralNode,
   NodeArray,
-  PropertySignature,
+  isSourceFile,
+  isVariableStatement,
+  isParameter,
+  isPropertyDeclaration,
+  isTypeAliasDeclaration,
+  isFunctionDeclaration,
+  isMethodDeclaration,
+  isArrowFunction,
+  isFunctionExpression,
+  isClassDeclaration,
+  isInterfaceDeclaration,
+  isIdentifier,
+  isPropertySignature,
+  isTypeLiteralNode,
 } from "typescript";
 
 function createSource(source: string): SourceFile {
@@ -48,9 +59,9 @@ function createTree(
   if (kind === SyntaxKind.MethodDeclaration) {
     sourceFile = createSource(`class _ { ${code} }`);
     const classDecl = sourceFile.statements[0] as ClassDeclaration;
-    const methodDecl = classDecl.members.find(
-      (member) => member.kind === SyntaxKind.MethodDeclaration,
-    ) as MethodDeclaration | undefined;
+    const methodDecl = classDecl.members.find((member) =>
+      isMethodDeclaration(member),
+    );
     return methodDecl || null;
   }
 
@@ -97,9 +108,6 @@ const areNodesEquivalent = (
   return true;
 };
 
-const isSourceFile = (node: Node | null): node is SourceFile =>
-  node?.kind === SyntaxKind.SourceFile;
-
 class Explorer {
   private tree: Node | null;
 
@@ -127,7 +135,7 @@ class Explorer {
 
     if (typeof other === "string") {
       // If current node is a MethodDeclaration, wrap the string in a class for proper parsing
-      if (this.tree?.kind === SyntaxKind.MethodDeclaration) {
+      if (this.tree && isMethodDeclaration(this.tree)) {
         otherExplorer = new Explorer(other, SyntaxKind.MethodDeclaration);
       } else {
         otherExplorer = new Explorer(other);
@@ -141,7 +149,7 @@ class Explorer {
 
   // Finds all nodes of a specific kind in the tree
   getAll(kind: SyntaxKind): Explorer[] {
-    if (this.isEmpty()) {
+    if (!this.tree) {
       return [];
     }
 
@@ -192,37 +200,26 @@ class Explorer {
       return new Explorer();
     }
 
-    const node = this.tree as Node;
+    const node = this.tree!;
 
     // Handle VariableStatement (variable declarations)
-    if (node.kind === SyntaxKind.VariableStatement) {
-      const declaration = (node as VariableStatement).declarationList
-        .declarations[0];
+    if (isVariableStatement(node)) {
+      const declaration = node.declarationList.declarations[0];
       if (declaration.type) {
         return new Explorer(declaration.type);
       }
     }
 
-    // Handle Parameter (function/method parameters)
-    if (node.kind === SyntaxKind.Parameter) {
-      const param = node as ParameterDeclaration;
-      if (param.type) {
-        return new Explorer(param.type);
+    // Handle Parameter (function/method parameters), PropertyDeclaration (class
+    // properties), and TypeAliasDeclaration (the type itself)
+    if (
+      isParameter(node) ||
+      isPropertyDeclaration(node) ||
+      isTypeAliasDeclaration(node)
+    ) {
+      if (node.type) {
+        return new Explorer(node.type);
       }
-    }
-
-    // Handle PropertyDeclaration (class properties)
-    if (node.kind === SyntaxKind.PropertyDeclaration) {
-      const prop = node as PropertyDeclaration;
-      if (prop.type) {
-        return new Explorer(prop.type);
-      }
-    }
-
-    // Handle TypeAliasDeclaration (the type itself)
-    if (node.kind === SyntaxKind.TypeAliasDeclaration) {
-      const typeAlias = node as TypeAliasDeclaration;
-      return new Explorer(typeAlias.type);
     }
 
     return new Explorer();
@@ -255,14 +252,11 @@ class Explorer {
     const functionVariables = variableStatements.filter((v) => {
       const declaration = (v.tree as VariableStatement).declarationList
         .declarations[0];
-      if (!declaration.initializer) {
-        return false;
-      }
+      if (!declaration.initializer) return false;
 
-      const initializerKind = declaration.initializer.kind;
       return (
-        initializerKind === SyntaxKind.ArrowFunction ||
-        initializerKind === SyntaxKind.FunctionExpression
+        isArrowFunction(declaration.initializer) ||
+        isFunctionExpression(declaration.initializer)
       );
     });
     return [...functionDeclarations, ...functionVariables];
@@ -273,13 +267,12 @@ class Explorer {
   findFunction(name: string, withVariables: boolean = false): Explorer {
     const functions = this.getFunctions(withVariables);
     const cb = (f: Explorer) => {
-      if (f.tree?.kind === SyntaxKind.FunctionDeclaration) {
-        return (f.tree as FunctionDeclaration).name?.text === name;
+      if (isFunctionDeclaration(f.tree!)) {
+        return f.tree.name?.text === name;
       }
 
-      if (f.tree?.kind === SyntaxKind.VariableStatement) {
-        const declaration = (f.tree as VariableStatement).declarationList
-          .declarations[0];
+      if (isVariableStatement(f.tree!)) {
+        const declaration = f.tree.declarationList.declarations[0];
         return (declaration.name as Identifier).text === name;
       }
     };
@@ -305,35 +298,24 @@ class Explorer {
       | FunctionExpression
       | null = null;
 
-    // Handle FunctionDeclaration
-    if (this.tree.kind === SyntaxKind.FunctionDeclaration) {
-      functionNode = this.tree as FunctionDeclaration;
-    }
-
-    // Handle MethodDeclaration
-    if (this.tree.kind === SyntaxKind.MethodDeclaration) {
-      functionNode = this.tree as MethodDeclaration;
-    }
-
-    // Handle ArrowFunction and FunctionExpression directly
+    // Handle FunctionDeclaration, MethodDeclaration, ArrowFunction and FunctionExpression directly
     if (
-      this.tree.kind === SyntaxKind.ArrowFunction ||
-      this.tree.kind === SyntaxKind.FunctionExpression
+      isFunctionDeclaration(this.tree) ||
+      isMethodDeclaration(this.tree) ||
+      isArrowFunction(this.tree) ||
+      isFunctionExpression(this.tree)
     ) {
-      functionNode = this.tree as ArrowFunction | FunctionExpression;
+      functionNode = this.tree;
     }
 
     // Handle VariableStatement with function initializer
-    if (this.tree.kind === SyntaxKind.VariableStatement) {
-      const declaration = (this.tree as VariableStatement).declarationList
-        .declarations[0];
+    if (isVariableStatement(this.tree)) {
+      const { initializer } = this.tree.declarationList.declarations[0];
       if (
-        declaration.initializer?.kind === SyntaxKind.ArrowFunction ||
-        declaration.initializer?.kind === SyntaxKind.FunctionExpression
+        initializer &&
+        (isArrowFunction(initializer) || isFunctionExpression(initializer))
       ) {
-        functionNode = declaration.initializer as
-          | ArrowFunction
-          | FunctionExpression;
+        functionNode = initializer;
       }
     }
 
@@ -356,22 +338,17 @@ class Explorer {
       return [];
     }
 
-    if (this.tree.kind === SyntaxKind.FunctionDeclaration) {
-      const funcDecl = this.tree as FunctionDeclaration;
-      return funcDecl.parameters.map((param) => new Explorer(param));
+    if (isFunctionDeclaration(this.tree)) {
+      return this.tree.parameters.map((param) => new Explorer(param));
     }
 
-    if (this.tree.kind === SyntaxKind.VariableStatement) {
-      const declaration = (this.tree as VariableStatement).declarationList
-        .declarations[0];
+    if (isVariableStatement(this.tree)) {
+      const { initializer } = this.tree.declarationList.declarations[0];
       if (
-        declaration.initializer?.kind === SyntaxKind.ArrowFunction ||
-        declaration.initializer?.kind === SyntaxKind.FunctionExpression
+        (initializer && isArrowFunction(initializer)) ||
+        (initializer && isFunctionExpression(initializer))
       ) {
-        const funcExpr = declaration.initializer as
-          | ArrowFunction
-          | FunctionExpression;
-        return funcExpr.parameters.map((param) => new Explorer(param));
+        return initializer.parameters.map((param) => new Explorer(param));
       }
     }
 
@@ -434,10 +411,9 @@ class Explorer {
 
   // Finds all method declarations within a class
   findMethods(): Explorer[] {
-    if (this.tree?.kind === SyntaxKind.ClassDeclaration) {
-      const classDecl = this.tree as ClassDeclaration;
-      return classDecl.members
-        .filter((member) => member.kind === SyntaxKind.MethodDeclaration)
+    if (this.tree && isClassDeclaration(this.tree)) {
+      return this.tree.members
+        .filter((member) => isMethodDeclaration(member))
         .map((method) => new Explorer(method));
     }
 
@@ -459,15 +435,14 @@ class Explorer {
 
   // Finds all properties in a class
   findClassProps(): Explorer[] {
-    if (!this.tree || this.tree.kind !== SyntaxKind.ClassDeclaration) {
+    if (!this.tree || !isClassDeclaration(this.tree)) {
       return [];
     }
 
-    const classDecl = this.tree as ClassDeclaration;
     const properties: Explorer[] = [];
 
-    classDecl.members.forEach((member) => {
-      if (member.kind === SyntaxKind.PropertyDeclaration) {
+    this.tree.members.forEach((member) => {
+      if (isPropertyDeclaration(member)) {
         properties.push(new Explorer(member));
       }
     });
@@ -496,37 +471,32 @@ class Explorer {
 
     function findMembers(tree: Node): NodeArray<TypeElement> | undefined {
       // Handle VariableStatement with TypeLiteral annotation
-      if (tree.kind === SyntaxKind.VariableStatement) {
-        const declaration = (tree as VariableStatement).declarationList
-          .declarations[0];
-        return declaration.type?.kind === SyntaxKind.TypeLiteral
-          ? (declaration.type as TypeLiteralNode).members
+      if (isVariableStatement(tree)) {
+        const declaration = tree.declarationList.declarations[0];
+        return declaration.type && isTypeLiteralNode(declaration.type)
+          ? declaration.type.members
           : undefined;
       }
 
       // Handle InterfaceDeclaration
-      if (tree.kind === SyntaxKind.InterfaceDeclaration) {
-        return (tree as InterfaceDeclaration).members;
+      if (isInterfaceDeclaration(tree)) {
+        return tree.members;
       }
 
       // Handle TypeAliasDeclaration with TypeLiteral
-      if (tree.kind === SyntaxKind.TypeAliasDeclaration) {
-        const typeAlias = tree as TypeAliasDeclaration;
-        return typeAlias.type.kind === SyntaxKind.TypeLiteral
-          ? (typeAlias.type as TypeLiteralNode).members
-          : undefined;
+      if (isTypeAliasDeclaration(tree)) {
+        return isTypeLiteralNode(tree.type) ? tree.type.members : undefined;
       }
 
       // Handle TypeLiteral directly
-      if (tree.kind === SyntaxKind.TypeLiteral) {
-        return (tree as TypeLiteralNode).members;
+      if (isTypeLiteralNode(tree)) {
+        return tree.members;
       }
 
       // Handle Parameter (for destructured parameters)
-      if (tree.kind === SyntaxKind.Parameter) {
-        const param = tree as ParameterDeclaration;
-        return param.type?.kind === SyntaxKind.TypeLiteral
-          ? (param.type as TypeLiteralNode).members
+      if (isParameter(tree)) {
+        return tree.type && isTypeLiteralNode(tree.type)
+          ? tree.type.members
           : undefined;
       }
     }
@@ -538,7 +508,7 @@ class Explorer {
     }
 
     const member = Array.from(members).find((m) => {
-      if (m.name?.kind === SyntaxKind.Identifier) {
+      if (m.name && isIdentifier(m.name)) {
         return m.name.text === name;
       }
 
@@ -551,13 +521,12 @@ class Explorer {
 
     // Check type if specified
     if (type !== undefined) {
-      if (member.kind === SyntaxKind.PropertySignature) {
-        const propSig = member as PropertySignature;
-        if (!propSig.type) {
+      if (isPropertySignature(member)) {
+        if (!member.type) {
           return false;
         }
 
-        const memberType = new Explorer(propSig.type);
+        const memberType = new Explorer(member.type);
         if (!memberType.matches(new Explorer(type, SyntaxKind.TypeReference))) {
           return false;
         }
@@ -568,9 +537,8 @@ class Explorer {
 
     // Check optionality if specified
     if (isOptional !== undefined) {
-      if (member.kind === SyntaxKind.PropertySignature) {
-        const propSig = member as PropertySignature;
-        const memberIsOptional = propSig.questionToken !== undefined;
+      if (isPropertySignature(member)) {
+        const memberIsOptional = member.questionToken !== undefined;
         if (memberIsOptional !== isOptional) {
           return false;
         }
