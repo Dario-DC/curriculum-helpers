@@ -42,7 +42,7 @@ describe("toString", () => {
   });
 });
 
-describe("equals", () => {
+describe("matches", () => {
   it("returns true when comparing equivalent nodes", () => {
     const explorer1 = new Explorer("const a = 1;");
     expect(explorer1.matches("const a = 1;")).toBe(true);
@@ -52,6 +52,9 @@ describe("equals", () => {
 
     const explorer3 = new Explorer("interface Bar { x: number; }");
     expect(explorer3.matches("interface Bar { x: number; }")).toBe(true);
+
+    const explorer4 = new Explorer();
+    expect(explorer4.matches("")).toBe(true);
   });
 
   it("returns false when comparing non-equivalent nodes", () => {
