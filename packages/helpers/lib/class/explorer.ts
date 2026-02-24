@@ -97,6 +97,9 @@ const areNodesEquivalent = (
   return true;
 };
 
+const isSourceFile = (node: Node | null): node is SourceFile =>
+  node?.kind === SyntaxKind.SourceFile;
+
 class Explorer {
   private tree: Node | null;
 
@@ -143,12 +146,11 @@ class Explorer {
     }
 
     const nodes: Explorer[] = [];
-    const root = this.tree as Node;
 
-    // Check if the root is a SourceFile or a single node
-    if (root.kind === SyntaxKind.SourceFile) {
+    // Check if the tree is a SourceFile or a single node
+    if (isSourceFile(this.tree)) {
       // Iterate through the statements of the SourceFile
-      (root as SourceFile).statements.forEach((statement) => {
+      this.tree.statements.forEach((statement) => {
         if (statement.kind === kind) {
           nodes.push(new Explorer(statement));
         }
@@ -156,8 +158,8 @@ class Explorer {
     }
 
     // If the root is a single node, check if it matches the kind
-    if (root.kind === kind) {
-      nodes.push(new Explorer(root));
+    if (this.tree?.kind === kind) {
+      nodes.push(new Explorer(this.tree));
     }
 
     return nodes;
