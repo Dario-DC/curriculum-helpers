@@ -6,7 +6,7 @@ const __dirname = new URL(".", import.meta.url).pathname;
 
 const FIXTURES_DIR = path.join(__dirname, "../../../__fixtures__/dist");
 
-export const compileForTests = () => {
+const compileForTests = () => {
   // It's necessary to manually remove the previous build artifacts so we can
   // check that the build is successful. This should not be necessary, but
   // webpack can fail silently.
@@ -49,3 +49,5 @@ export const compileForTests = () => {
     console.error(result.stderr);
   }
 };
+
+compileForTests();

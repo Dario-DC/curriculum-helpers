@@ -1,6 +1,5 @@
 /* eslint-disable max-lines */
 import "vitest-environment-puppeteer";
-import { compileForTests } from "../../shared/tooling/webpack-compile";
 import type { FCCTestRunner } from "../../main/src/index";
 import { Fail, Pass } from "../../shared/src/interfaces/test-evaluator";
 
@@ -12,10 +11,9 @@ declare global {
 
 describe("Test Runner", () => {
   beforeAll(async () => {
-    compileForTests();
     await page.goto("http://localhost:8080/");
-    // It shouldn't take this long, particularly not once cached, but just to be
-    // safe
+    // It shouldn't take this long, particularly now that webpack is used in a
+    // setup file, but just to be safe
   }, 20000);
 
   beforeEach(async () => {
