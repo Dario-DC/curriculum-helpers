@@ -43,6 +43,50 @@ function createSource(source: string): SourceFile {
   );
 }
 
+const normalizeStringQuotes = (str: string): string => {
+  // Convert all single quotes to double quotes for consistent comparison
+  if (
+    (str.startsWith('"') && str.endsWith('"')) ||
+    (str.startsWith("'") && str.endsWith("'"))
+  ) {
+    return `"${str.slice(1, -1)}"`;
+  }
+
+  return str;
+};
+
+function findMembers(tree: Node): NodeArray<TypeElement> | undefined {
+  // Handle VariableStatement with TypeLiteral annotation
+  if (isVariableStatement(tree)) {
+    const declaration = tree.declarationList.declarations[0];
+    return declaration.type && isTypeLiteralNode(declaration.type)
+      ? declaration.type.members
+      : undefined;
+  }
+
+  // Handle InterfaceDeclaration
+  if (isInterfaceDeclaration(tree)) {
+    return tree.members;
+  }
+
+  // Handle TypeAliasDeclaration with TypeLiteral
+  if (isTypeAliasDeclaration(tree)) {
+    return isTypeLiteralNode(tree.type) ? tree.type.members : undefined;
+  }
+
+  // Handle TypeLiteral directly
+  if (isTypeLiteralNode(tree)) {
+    return tree.members;
+  }
+
+  // Handle Parameter (for destructured parameters)
+  if (isParameter(tree)) {
+    return tree.type && isTypeLiteralNode(tree.type)
+      ? tree.type.members
+      : undefined;
+  }
+}
+
 function createTree(
   code: string,
   kind:
@@ -93,8 +137,11 @@ const areNodesEquivalent = (
   const children2 = removeSemicolons(node2.getChildren());
 
   if (children1.length === 0 && children2.length === 0) {
-    // Leaf node - compare text content
-    return node1.getText() === node2.getText();
+    // Leaf node - compare text content with normalized quotes
+    return (
+      normalizeStringQuotes(node1.getText()) ===
+      normalizeStringQuotes(node2.getText())
+    );
   }
 
   if (children1.length !== children2.length) return false;
@@ -467,38 +514,6 @@ class Explorer {
   hasTypeProp(name: string, type?: string, isOptional?: boolean): boolean {
     if (!this.tree) {
       return false;
-    }
-
-    function findMembers(tree: Node): NodeArray<TypeElement> | undefined {
-      // Handle VariableStatement with TypeLiteral annotation
-      if (isVariableStatement(tree)) {
-        const declaration = tree.declarationList.declarations[0];
-        return declaration.type && isTypeLiteralNode(declaration.type)
-          ? declaration.type.members
-          : undefined;
-      }
-
-      // Handle InterfaceDeclaration
-      if (isInterfaceDeclaration(tree)) {
-        return tree.members;
-      }
-
-      // Handle TypeAliasDeclaration with TypeLiteral
-      if (isTypeAliasDeclaration(tree)) {
-        return isTypeLiteralNode(tree.type) ? tree.type.members : undefined;
-      }
-
-      // Handle TypeLiteral directly
-      if (isTypeLiteralNode(tree)) {
-        return tree.members;
-      }
-
-      // Handle Parameter (for destructured parameters)
-      if (isParameter(tree)) {
-        return tree.type && isTypeLiteralNode(tree.type)
-          ? tree.type.members
-          : undefined;
-      }
     }
 
     const members = findMembers(this.tree);
