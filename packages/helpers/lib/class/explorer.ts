@@ -34,6 +34,12 @@ import {
   isTypeLiteralNode,
 } from "typescript";
 
+type TypeProp = {
+  name: string;
+  type?: string;
+  isOptional?: boolean;
+};
+
 function createSource(source: string): SourceFile {
   return createSourceFile(
     "inline.ts",
@@ -277,10 +283,12 @@ class Explorer {
     }
 
     // Handle Parameter (function/method parameters), PropertyDeclaration (class
-    // properties), and TypeAliasDeclaration (the type itself)
+    // properties), PropertySignature (interface/type literal properties), and
+    // TypeAliasDeclaration (the type itself)
     if (
       isParameter(node) ||
       isPropertyDeclaration(node) ||
+      isPropertySignature(node) ||
       isTypeAliasDeclaration(node)
     ) {
       if (node.type) {
@@ -546,13 +554,74 @@ class Explorer {
     return true;
   }
 
-  // Checks if all specified properties exist in the current tree, which can be an interface, type literal, or variable statement with a type literal annotation
-  hasTypeProps(
-    props: { name: string; type?: string; isOptional?: boolean }[],
-  ): boolean {
-    return props.every((prop) =>
-      this.hasTypeProp(prop.name, prop.type, prop.isOptional),
-    );
+  // Checks if all specified properties exist in the current tree, which can be an interface, type alias, type literal, or variable statement with a type literal annotation
+  hasTypeProps(props: TypeProp | TypeProp[]): boolean {
+    if (!this.tree) {
+      return false;
+    }
+
+    if (
+      !isInterfaceDeclaration(this.tree) &&
+      !isTypeLiteralNode(this.tree) &&
+      !isTypeAliasDeclaration(this.tree) &&
+      !isVariableStatement(this.tree)
+    ) {
+      return false;
+    }
+
+    if (!Array.isArray(props)) {
+      props = [props];
+    }
+
+    const members = this.getTypeProps();
+    if (Object.keys(members).length === 0) {
+      if (props.length === 0) {
+        return true; // If no properties are specified, consider it a match
+      }
+
+      return false;
+    }
+
+    if (props.length === 0) {
+      return false;
+    }
+
+    function hasProp(prop: TypeProp): boolean {
+      const member = members[prop.name];
+      if (!member) {
+        return false;
+      }
+
+      // Check type if specified
+      if (prop.type !== undefined) {
+        if (!member.tree || !isPropertySignature(member.tree)) {
+          return false;
+        }
+
+        const memberType = new Explorer(member.tree.type);
+        if (
+          !memberType.matches(new Explorer(prop.type, SyntaxKind.TypeReference))
+        ) {
+          return false;
+        }
+      }
+
+      // Check optionality if specified
+      if (prop.isOptional !== undefined) {
+        if (!member.tree || !isPropertySignature(member.tree)) {
+          return false;
+        }
+
+        const memberIsOptional = member.tree.questionToken !== undefined;
+        if (memberIsOptional !== prop.isOptional) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    return props.every((prop) => hasProp(prop));
   }
 }
 
