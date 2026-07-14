@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Explorer } from "../helpers/lib/class/explorer";
 
 expect.extend({
@@ -1269,5 +1270,318 @@ describe("typeArguments", () => {
   it("returns an empty array for an empty Explorer", () => {
     const explorer = new Explorer();
     expect(explorer.typeArguments).toHaveLength(0);
+  });
+});
+
+describe("ifStatements", () => {
+  it("returns an array of Explorer objects", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); }
+    if (y < 0) { console.log("Negative"); } else { console.log("Non-negative"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements).toHaveLength(2);
+    ifStatements.forEach((ifStmt) => expect(ifStmt).toBeInstanceOf(Explorer));
+  });
+
+  it("returns one entry per if statement", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); }
+    if (y < 0) { console.log("Negative"); } else { console.log("Non-negative"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(
+      ifStatements[0].matches(
+        `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); }`,
+      ),
+    ).toBe(true);
+    expect(
+      ifStatements[1].matches(
+        `if (y < 0) { console.log("Negative"); } else { console.log("Non-negative"); }`,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns an empty array if there are no if statements", () => {
+    const sourceCode = `const a = 1; const b = 2;`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements).toHaveLength(0);
+  });
+
+  it("finds if statements nested inside the body of an outer if statement", () => {
+    const sourceCode = `
+      if (x > 0) {
+        if (y > 0) {
+          console.log("Both positive");
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements).toHaveLength(1);
+
+    const { ifStatements: nestedIfStatements } = ifStatements[0].body;
+    expect(nestedIfStatements).toHaveLength(1);
+    expect(
+      nestedIfStatements[0].matches(
+        `if (y > 0) { console.log("Both positive"); }`,
+      ),
+    ).toBe(true);
+  });
+
+  it("finds if statements nested inside the else branch of an outer if statement", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else {
+        if (y > 0) {
+          console.log("x non-positive but y positive");
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    const { ifStatements: nestedIfStatements } = ifStatements[0].elseStatement;
+    expect(nestedIfStatements).toHaveLength(1);
+    expect(nestedIfStatements[0].condition.matches("y > 0")).toBe(true);
+  });
+
+  it("does not find if statements nested inside a function declared within the body", () => {
+    const sourceCode = `
+      if (x > 0) {
+        function helper() {
+          if (y > 0) {
+            console.log("nested in function");
+          }
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].body.ifStatements).toHaveLength(0);
+
+    const { helper } = ifStatements[0].body.functions;
+    expect(helper.ifStatements).toHaveLength(1);
+    expect(helper.ifStatements[0].condition.matches("y > 0")).toBe(true);
+  });
+});
+
+describe("condition", () => {
+  it("returns an Explorer object for the condition of an if statement", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); } if (y < 0 && z > 0) { console.log("Negative"); } else { console.log("Non-negative"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].condition).toBeInstanceOf(Explorer);
+    expect(ifStatements[0].condition.matches(`x > 0`)).toBe(true);
+    expect(ifStatements[1].condition).toBeInstanceOf(Explorer);
+    expect(ifStatements[1].condition.matches(`y < 0 && z > 0`)).toBe(true);
+  });
+
+  it("returns the condition of an if statement nested inside another if statement's body", () => {
+    const sourceCode = `
+      if (a > 0) {
+        if (b > 0) {
+          if (c > 0) {
+            console.log("All positive");
+          }
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const level1 = explorer.ifStatements[0];
+    expect(level1.condition.matches("a > 0")).toBe(true);
+
+    const level2 = level1.body.ifStatements[0];
+    expect(level2.condition.matches("b > 0")).toBe(true);
+
+    const level3 = level2.body.ifStatements[0];
+    expect(level3.condition.matches("c > 0")).toBe(true);
+  });
+});
+
+describe("body", () => {
+  it("returns an Explorer object for the body of a conditional statement", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); } if (y < 0 && z > 0) { console.log("Negative"); } else { console.log("Non-negative"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].body).toBeInstanceOf(Explorer);
+    expect(ifStatements[0].body.matches(`{ console.log("Positive"); }`)).toBe(
+      true,
+    );
+    expect(ifStatements[1].body).toBeInstanceOf(Explorer);
+    expect(ifStatements[1].body.matches(`{ console.log("Negative"); }`)).toBe(
+      true,
+    );
+  });
+
+  it("allows drilling into the body of nested if statements", () => {
+    const sourceCode = `
+      if (a > 0) {
+        if (b > 0) {
+          console.log("Both positive");
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const outer = explorer.ifStatements[0];
+    const inner = outer.body.ifStatements[0];
+    expect(inner.body.matches(`{ console.log("Both positive"); }`)).toBe(true);
+  });
+});
+
+describe("elseStatement", () => {
+  it("returns an Explorer object for the body of an else statement", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); } if (y < 0 && z > 0) { console.log("Negative"); } else { console.log("Non-negative"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].elseStatement).toBeInstanceOf(Explorer);
+    expect(
+      ifStatements[0].elseStatement.matches(`{ console.log("Non-positive"); }`),
+    ).toBe(true);
+    expect(ifStatements[1].elseStatement).toBeInstanceOf(Explorer);
+    expect(
+      ifStatements[1].elseStatement.matches(`{ console.log("Non-negative"); }`),
+    ).toBe(true);
+  });
+
+  it("returns an empty Explorer if there is no else statement", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].elseStatement.isEmpty()).toBe(true);
+  });
+
+  it("skips past 'else if' links and returns only the trailing plain else block", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else if (x < 0) {
+        console.log("Negative");
+      } else if (x === 0) {
+        console.log("Zero");
+      } else {
+        console.log("Unknown");
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(
+      ifStatements[0].elseStatement.matches(`{ console.log("Unknown"); }`),
+    ).toBe(true);
+  });
+
+  it("returns an empty Explorer if an 'else if' chain has no trailing else", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else if (x < 0) {
+        console.log("Negative");
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].elseStatement.isEmpty()).toBe(true);
+  });
+
+  it("supports if statements nested inside the else branch", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else {
+        if (y > 0) {
+          console.log("x non-positive but y positive");
+        } else {
+          console.log("Both non-positive");
+        }
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    const nestedIf = ifStatements[0].elseStatement.ifStatements[0];
+    expect(nestedIf.condition.matches("y > 0")).toBe(true);
+    expect(
+      nestedIf.elseStatement.matches(`{ console.log("Both non-positive"); }`),
+    ).toBe(true);
+  });
+});
+
+describe("elseIfStatements", () => {
+  it("returns an array of Explorer objects for each 'else if' link in the chain", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else if (x < 0) {
+        console.log("Negative");
+      } else if (x === 0) {
+        console.log("Zero");
+      } else {
+        console.log("Unknown");
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    const { elseIfStatements } = ifStatements[0];
+    expect(elseIfStatements).toHaveLength(2);
+    elseIfStatements.forEach((elseIf) =>
+      expect(elseIf).toBeInstanceOf(Explorer),
+    );
+  });
+
+  it("allows accessing condition and body on each 'else if' link", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else if (x < 0) {
+        console.log("Negative");
+      } else if (x === 0) {
+        console.log("Zero");
+      } else {
+        console.log("Unknown");
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    const { elseIfStatements } = ifStatements[0];
+
+    expect(elseIfStatements[0].condition.matches("x < 0")).toBe(true);
+    expect(
+      elseIfStatements[0].body.matches(`{ console.log("Negative"); }`),
+    ).toBe(true);
+
+    expect(elseIfStatements[1].condition.matches("x === 0")).toBe(true);
+    expect(elseIfStatements[1].body.matches(`{ console.log("Zero"); }`)).toBe(
+      true,
+    );
+  });
+
+  it("returns an empty array if there are no 'else if' links", () => {
+    const sourceCode = `if (x > 0) { console.log("Positive"); } else { console.log("Non-positive"); }`;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    expect(ifStatements[0].elseIfStatements).toHaveLength(0);
+  });
+
+  it("finds if statements nested inside an 'else if' branch", () => {
+    const sourceCode = `
+      if (x > 0) {
+        console.log("Positive");
+      } else if (x < 0) {
+        if (y < 0) {
+          console.log("Both negative");
+        }
+      } else {
+        console.log("Zero");
+      }
+    `;
+    const explorer = new Explorer(sourceCode);
+    const { ifStatements } = explorer;
+    const { elseIfStatements } = ifStatements[0];
+    expect(elseIfStatements).toHaveLength(1);
+
+    const { ifStatements: nestedIfStatements } = elseIfStatements[0].body;
+    expect(nestedIfStatements).toHaveLength(1);
+    expect(nestedIfStatements[0].condition.matches("y < 0")).toBe(true);
+    expect(
+      nestedIfStatements[0].body.matches(`{ console.log("Both negative"); }`),
+    ).toBe(true);
   });
 });

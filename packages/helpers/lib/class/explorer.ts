@@ -12,6 +12,7 @@ import {
   ArrowFunction,
   isArrayLiteralExpression,
   FunctionExpression,
+  IfStatement,
   InterfaceDeclaration,
   ClassDeclaration,
   MethodDeclaration,
@@ -21,6 +22,7 @@ import {
   ObjectLiteralExpression,
   isSourceFile,
   isBlock,
+  isIfStatement,
   isVariableStatement,
   isParameter,
   isPropertyDeclaration,
@@ -1106,6 +1108,56 @@ class Explorer {
   hasNonNullAssertion(): boolean {
     if (!this.tree) return false;
     return isNonNullExpression(this.tree);
+  }
+
+  // Finds all if statements in the current scope
+  get ifStatements(): Explorer[] {
+    return this.getAll(SyntaxKind.IfStatement);
+  }
+
+  // Retrieves the condition expression of an if statement
+  get condition(): Explorer {
+    if (!this.tree || !isIfStatement(this.tree)) return new Explorer();
+    return new Explorer(this.tree.expression);
+  }
+
+  // Retrieves the body of an if statement
+  get body(): Explorer {
+    if (!this.tree || !isIfStatement(this.tree)) return new Explorer();
+    return new Explorer(this.tree.thenStatement);
+  }
+
+  // Retrieves all "else if" statements chained off of an if statement, in order
+  get elseIfStatements(): Explorer[] {
+    if (!this.tree || !isIfStatement(this.tree)) {
+      return [];
+    }
+
+    const result: Explorer[] = [];
+    let current: IfStatement = this.tree;
+    while (current.elseStatement && isIfStatement(current.elseStatement)) {
+      current = current.elseStatement;
+      result.push(new Explorer(current));
+    }
+
+    return result;
+  }
+
+  // Retrieves the final "else" statement of an if statement (skipping any
+  // "else if" links in the chain), if it exists
+  get elseStatement(): Explorer {
+    if (!this.tree || !isIfStatement(this.tree)) {
+      return new Explorer();
+    }
+
+    let current: IfStatement = this.tree;
+    while (current.elseStatement && isIfStatement(current.elseStatement)) {
+      current = current.elseStatement;
+    }
+
+    return current.elseStatement
+      ? new Explorer(current.elseStatement)
+      : new Explorer();
   }
 }
 
