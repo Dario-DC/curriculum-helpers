@@ -23,6 +23,7 @@ import {
   isSourceFile,
   isBlock,
   isIfStatement,
+  isConditionalExpression,
   isVariableStatement,
   isParameter,
   isPropertyDeclaration,
@@ -1115,16 +1116,44 @@ class Explorer {
     return this.getAll(SyntaxKind.IfStatement);
   }
 
-  // Retrieves the condition expression of an if statement
+  // Retrieves the condition expression of an if statement or ternary (conditional) expression
   get condition(): Explorer {
-    if (!this.tree || !isIfStatement(this.tree)) return new Explorer();
-    return new Explorer(this.tree.expression);
+    if (!this.tree) return new Explorer();
+    if (isIfStatement(this.tree)) return new Explorer(this.tree.expression);
+    if (isConditionalExpression(this.tree)) {
+      return new Explorer(this.tree.condition);
+    }
+
+    return new Explorer();
   }
 
   // Retrieves the body of an if statement
   get body(): Explorer {
     if (!this.tree || !isIfStatement(this.tree)) return new Explorer();
     return new Explorer(this.tree.thenStatement);
+  }
+
+  // Retrieves the "true" branch expression of a ternary (conditional) expression
+  get whenTrue(): Explorer {
+    if (!this.tree || !isConditionalExpression(this.tree)) {
+      return new Explorer();
+    }
+
+    return new Explorer(this.tree.whenTrue);
+  }
+
+  // Retrieves the "false" branch expression of a ternary (conditional) expression
+  get whenFalse(): Explorer {
+    if (!this.tree || !isConditionalExpression(this.tree)) {
+      return new Explorer();
+    }
+
+    return new Explorer(this.tree.whenFalse);
+  }
+
+  // Checks if the current node is a ternary (conditional) expression
+  isTernary(): boolean {
+    return !!this.tree && isConditionalExpression(this.tree);
   }
 
   // Retrieves all "else if" statements chained off of an if statement, in order

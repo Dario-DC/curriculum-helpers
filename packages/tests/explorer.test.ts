@@ -1396,6 +1396,85 @@ describe("condition", () => {
     const level3 = level2.body.ifStatements[0];
     expect(level3.condition.matches("c > 0")).toBe(true);
   });
+
+  it("returns an Explorer object for the condition of a ternary expression", () => {
+    const { variables } = new Explorer(
+      `const a = x > 0 ? "positive" : "non-positive";`,
+    );
+    const { value } = variables.a;
+    expect(value.condition).toBeInstanceOf(Explorer);
+    expect(value.condition.matches("x > 0")).toBe(true);
+  });
+
+  it("returns an empty Explorer if called on a node that isn't an if statement or ternary expression", () => {
+    const { variables } = new Explorer(`const a = 1;`);
+    expect(variables.a.condition.isEmpty()).toBe(true);
+  });
+});
+
+describe("whenTrue", () => {
+  it("returns an Explorer object for the 'true' branch of a ternary expression", () => {
+    const { variables } = new Explorer(
+      `const a = x > 0 ? "positive" : "non-positive";`,
+    );
+    const { value } = variables.a;
+    expect(value.whenTrue).toBeInstanceOf(Explorer);
+    expect(value.whenTrue.matches(`"positive"`)).toBe(true);
+  });
+
+  it("returns an empty Explorer if called on a node that isn't a ternary expression", () => {
+    const { variables } = new Explorer(`const a = 1;`);
+    expect(variables.a.value.whenTrue.isEmpty()).toBe(true);
+  });
+});
+
+describe("whenFalse", () => {
+  it("returns an Explorer object for the 'false' branch of a ternary expression", () => {
+    const { variables } = new Explorer(
+      `const a = x > 0 ? "positive" : "non-positive";`,
+    );
+    const { value } = variables.a;
+    expect(value.whenFalse).toBeInstanceOf(Explorer);
+    expect(value.whenFalse.matches(`"non-positive"`)).toBe(true);
+  });
+
+  it("returns an empty Explorer if called on a node that isn't a ternary expression", () => {
+    const { variables } = new Explorer(`const a = 1;`);
+    expect(variables.a.value.whenFalse.isEmpty()).toBe(true);
+  });
+
+  it("supports chained (nested) ternaries via whenFalse", () => {
+    const { variables } = new Explorer(
+      `const a = x > 0 ? "positive" : x < 0 ? "negative" : "zero";`,
+    );
+    const { value } = variables.a;
+    expect(value.condition.matches("x > 0")).toBe(true);
+    expect(value.whenTrue.matches(`"positive"`)).toBe(true);
+
+    const nested = value.whenFalse;
+    expect(nested.condition.matches("x < 0")).toBe(true);
+    expect(nested.whenTrue.matches(`"negative"`)).toBe(true);
+    expect(nested.whenFalse.matches(`"zero"`)).toBe(true);
+  });
+});
+
+describe("isTernary", () => {
+  it("returns true if the node is a ternary (conditional) expression", () => {
+    const { variables } = new Explorer(
+      `const a = x > 0 ? "positive" : "non-positive";`,
+    );
+    expect(variables.a.value.isTernary()).toBe(true);
+  });
+
+  it("returns false if the node is not a ternary (conditional) expression", () => {
+    const { variables } = new Explorer(`const a = 1;`);
+    expect(variables.a.value.isTernary()).toBe(false);
+  });
+
+  it("returns false for an empty Explorer", () => {
+    const explorer = new Explorer();
+    expect(explorer.isTernary()).toBe(false);
+  });
 });
 
 describe("body", () => {
